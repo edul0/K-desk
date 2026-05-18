@@ -1,4 +1,5 @@
-﻿import os
+﻿import json
+import os
 from pathlib import Path
 
 from flask import Flask, jsonify, request
@@ -14,7 +15,13 @@ ARTICLES = load_kb(Path(KB_FILE))
 
 @app.route("/api/triage", methods=["POST"])
 def triage_route():
-    data = request.get_json(silent=True) or {}
+    data = request.get_json(silent=True)
+    if not data:
+        raw = request.get_data(cache=False, as_text=True) or "{}"
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            data = {}
     requester_name = (data.get("requester_name") or "Usuário não identificado").strip()
     requester_email = (data.get("requester_email") or "não informado").strip()
     description = (data.get("description") or "").strip()
