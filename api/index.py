@@ -85,7 +85,7 @@ def triage_route():
     ), 200
 
 
-@app.route("/api/init-db", methods=["POST"])
+@app.route("/api/init-db", methods=["GET", "POST"])
 def init_db_route():
     init_db()
     return jsonify({"ok": True, "message": "Database initialized"}), 200
