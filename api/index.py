@@ -75,6 +75,17 @@ def triage_route():
     ), 200
 
 
+@app.route("/api/debug", methods=["POST"])
+def debug_payload():
+    return jsonify({
+        "content_type": request.content_type,
+        "raw": request.get_data(cache=False, as_text=True),
+        "json": request.get_json(silent=True),
+        "form": request.form.to_dict(flat=True),
+        "args": request.args.to_dict(flat=True),
+    }), 200
+
+
 @app.route("/api/health", methods=["GET"])
 def health():
     return jsonify({"ok": True, "kb_articles": len(ARTICLES)}), 200
