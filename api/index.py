@@ -5,7 +5,7 @@ from pathlib import Path
 from flask import Flask, jsonify, request
 
 from agent_core import load_kb, triage
-from google_sheets_store import append_ticket
+from vercel_sql_store import append_ticket, init_db
 
 app = Flask(__name__)
 
@@ -32,10 +32,7 @@ def triage_route():
 
     status, payload = triage(description, answers, ARTICLES)
 
-    if status == "need_more_info":
-        return jsonify({"status": status, **payload}), 200
-
-    if status == "missing_required":
+    if status in {"need_more_info", "missing_required"}:
         return jsonify({"status": status, **payload}), 200
 
     article = payload["article"]
@@ -74,6 +71,11 @@ def triage_route():
         }
     ), 200
 
+
+@app.route("/api/init-db", methods=["POST"])
+def init_db_route():
+    init_db()
+    return jsonify({"ok": True, "message": "Database initialized"}), 200
 
 
 @app.route("/api/health", methods=["GET"])
