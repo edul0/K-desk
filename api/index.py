@@ -13,6 +13,19 @@ KB_FILE = os.environ.get("KB_CSV_PATH", "data/support_knowledge_base.csv")
 ARTICLES = load_kb(Path(KB_FILE))
 
 
+@app.route("/", methods=["GET"])
+def home():
+    return jsonify({
+        "name": "K-desk API",
+        "status": "online",
+        "endpoints": {
+            "health": "/api/health",
+            "triage": "/api/triage",
+            "init_db": "/api/init-db"
+        }
+    }), 200
+
+
 @app.route("/api/triage", methods=["POST"])
 def triage_route():
     data = request.get_json(silent=True)
