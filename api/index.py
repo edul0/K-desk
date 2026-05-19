@@ -8,8 +8,9 @@ from agent_core import load_kb, triage
 
 app = Flask(__name__)
 
-KB_FILE = os.environ.get("KB_CSV_PATH", "data/support_knowledge_base.csv")
-ARTICLES = load_kb(Path(KB_FILE))
+# Resolve o CSV relativo ao index.py, independente do working directory na Vercel
+KB_FILE = Path(__file__).parent.parent / "data" / "support_knowledge_base.csv"
+ARTICLES = load_kb(KB_FILE)
 
 
 @app.route("/", methods=["GET"])
@@ -215,7 +216,7 @@ def chat_interface():
             <small>K-Desk &middot; Atendimento Automatizado</small>
         </div>
         <div id="chat-box">
-            <div class="message bot-msg">Ola! Descreva o seu problema ou incidente de TI e vou registrar um chamado para voce.</div>
+            <div class="message bot-msg">Olá! Descreva o seu problema ou incidente de TI e vou registrar um chamado para você.</div>
         </div>
         <div id="input-area">
             <input type="text" id="user-input" placeholder="Descreva seu problema..." onkeypress="handleKeyPress(event)">
@@ -294,12 +295,12 @@ def chat_interface():
                     currentState = "FINISHED";
                     let msg = 'Chamado registrado!\\n\\n';
                     msg += 'Ticket: ' + data.ticket_id + '\\n';
-                    msg += 'Servico: ' + data.service + ' / ' + data.category + '\\n';
+                    msg += 'Serviço: ' + data.service + ' / ' + data.category + '\\n';
                     msg += 'Prioridade: ' + data.priority + '\\n';
                     msg += 'Prazo: ' + data.estimated_resolution_time + '\\n\\n';
-                    msg += 'Proximos passos:\\n' + data.resolution_steps;
+                    msg += 'Próximos passos:\\n' + data.resolution_steps;
                     if (data.workaround) msg += '\\n\\nContorno:\\n' + data.workaround;
-                    if (data.escalation_required) msg += '\\n\\nEscalado para analista humano.';
+                    if (data.escalation_required) msg += '\\n\\n⚠️ Escalado para analista humano.';
                     addMessage(msg, 'bot-msg');
                     document.getElementById('user-input').disabled = true;
                     btn.disabled = true;
