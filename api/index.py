@@ -225,7 +225,7 @@ def chat_interface():
     </div>
 
     <script>
-        const API_URL = "/api/triage";
+const API_URL = "https://eduardol.app.n8n.cloud/webhook/chat";
 
         let currentDescription = "";
         let collectedAnswers = {};
