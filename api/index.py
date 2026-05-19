@@ -11,11 +11,6 @@ app = Flask(__name__)
 KB_FILE = os.environ.get("KB_CSV_PATH", "data/support_knowledge_base.csv")
 ARTICLES = load_kb(Path(KB_FILE))
 
-N8N_WEBHOOK_URL = os.environ.get(
-    "N8N_WEBHOOK_URL",
-    "https://eduardol.app.n8n.cloud/webhook/chat"
-)
-
 
 @app.route("/", methods=["GET"])
 def home():
@@ -58,7 +53,6 @@ def triage_route():
     eta = payload["eta"]
     escalation = payload["escalation"]
 
-    # Importação lazy para não crashar o boot se as credenciais não existirem
     try:
         from google_sheets_store import append_ticket
         ticket_id = append_ticket(
@@ -75,10 +69,9 @@ def triage_route():
             collected_fields=answers,
         )
     except Exception as e:
-        # Se o Sheets falhar, gera um ID local para não quebrar o fluxo
         import uuid
-        ticket_id = f"LOCAL-{uuid.uuid4().hex[:8].upper()}"
-        app.logger.warning(f"Google Sheets indisponível: {e}. Ticket ID local: {ticket_id}")
+        ticket_id = f"TKT-{uuid.uuid4().hex[:8].upper()}"
+        app.logger.warning(f"Google Sheets indisponível: {e}. Ticket: {ticket_id}")
 
     return jsonify({
         "status": "registered",
@@ -103,129 +96,231 @@ def health():
 
 @app.route("/chat", methods=["GET"])
 def chat_interface():
-    html = f"""<!DOCTYPE html>
+    html = """<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Suporte TI - K-Desk</title>
     <style>
-        body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f4f4f9; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }}
-        #chat-container {{ width: 420px; height: 600px; background: white; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); display: flex; flex-direction: column; overflow: hidden; }}
-        #chat-header {{ background: #0070f3; color: white; padding: 15px; text-align: center; font-weight: bold; font-size: 16px; }}
-        #chat-box {{ flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; background: #fafafa; }}
-        .message {{ max-width: 85%; padding: 10px 14px; border-radius: 8px; font-size: 14px; line-height: 1.4; white-space: pre-line; }}
-        .bot-msg {{ background: #e9e9eb; color: #000; align-self: flex-start; border-bottom-left-radius: 0; }}
-        .user-msg {{ background: #0070f3; color: white; align-self: flex-end; border-bottom-right-radius: 0; }}
-        #input-area {{ display: flex; padding: 12px; border-top: 1px solid #eaeaea; background: white; }}
-        input {{ flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 6px; outline: none; font-size: 14px; }}
-        button {{ padding: 10px 16px; margin-left: 10px; background: #0070f3; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }}
-        button:hover {{ background: #005bb5; }}
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        #chat-container {
+            width: 440px;
+            height: 620px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        #chat-header {
+            background: #0070f3;
+            color: white;
+            padding: 18px 20px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 15px;
+            letter-spacing: 0.3px;
+        }
+        #chat-header small {
+            display: block;
+            font-size: 11px;
+            opacity: 0.8;
+            margin-top: 2px;
+            font-weight: 400;
+        }
+        #chat-box {
+            flex: 1;
+            padding: 16px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            background: #f8f9fa;
+        }
+        .message {
+            max-width: 82%;
+            padding: 10px 14px;
+            border-radius: 12px;
+            font-size: 14px;
+            line-height: 1.5;
+            white-space: pre-line;
+        }
+        .bot-msg {
+            background: #fff;
+            color: #1a1a1a;
+            align-self: flex-start;
+            border-bottom-left-radius: 3px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        .user-msg {
+            background: #0070f3;
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 3px;
+        }
+        .loading-msg {
+            background: #fff;
+            color: #999;
+            align-self: flex-start;
+            border-bottom-left-radius: 3px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            font-style: italic;
+        }
+        #input-area {
+            display: flex;
+            padding: 12px 14px;
+            border-top: 1px solid #eee;
+            background: white;
+            gap: 8px;
+        }
+        #user-input {
+            flex: 1;
+            padding: 10px 14px;
+            border: 1.5px solid #ddd;
+            border-radius: 8px;
+            outline: none;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+        #user-input:focus { border-color: #0070f3; }
+        #send-btn {
+            padding: 10px 18px;
+            background: #0070f3;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+        #send-btn:hover { background: #005bb5; }
+        #send-btn:disabled { background: #aaa; cursor: not-allowed; }
     </style>
 </head>
 <body>
     <div id="chat-container">
-        <div id="chat-header">Centro de Suporte Inteligente - K-Desk</div>
+        <div id="chat-header">
+            Centro de Suporte Inteligente
+            <small>K-Desk &middot; Atendimento Automatizado</small>
+        </div>
         <div id="chat-box">
-            <div class="message bot-msg">Olá! Descreva detalhadamente o seu problema ou incidente de TI para que eu possa ajudar.</div>
+            <div class="message bot-msg">Ola! Descreva o seu problema ou incidente de TI e vou registrar um chamado para voce.</div>
         </div>
         <div id="input-area">
-            <input type="text" id="user-input" placeholder="Digite aqui sua mensagem..." onkeypress="handleKeyPress(event)">
-            <button onclick="sendMessage()">Enviar</button>
+            <input type="text" id="user-input" placeholder="Descreva seu problema..." onkeypress="handleKeyPress(event)">
+            <button id="send-btn" onclick="sendMessage()">Enviar</button>
         </div>
     </div>
 
     <script>
-        const webhookUrl = "{N8N_WEBHOOK_URL}";
+        const API_URL = "/api/triage";
 
         let currentDescription = "";
-        let collectedAnswers = {{}};
+        let collectedAnswers = {};
         let currentState = "AWAITING_DESCRIPTION";
-        let questionQueue = [];
         let currentQuestionTarget = "";
 
-        function addMessage(text, sender) {{
+        function addMessage(text, type) {
             const chatBox = document.getElementById('chat-box');
-            const msgDiv = document.createElement('div');
-            msgDiv.className = 'message ' + (sender === 'user' ? 'user-msg' : 'bot-msg');
-            msgDiv.innerText = text;
-            chatBox.appendChild(msgDiv);
+            const div = document.createElement('div');
+            div.className = 'message ' + type;
+            div.innerText = text;
+            chatBox.appendChild(div);
             chatBox.scrollTop = chatBox.scrollHeight;
-        }}
+            return div;
+        }
 
-        async function sendMessage() {{
+        async function sendMessage() {
             const input = document.getElementById('user-input');
+            const btn = document.getElementById('send-btn');
             const text = input.value.trim();
             if (!text) return;
 
-            addMessage(text, 'user');
+            addMessage(text, 'user-msg');
             input.value = '';
+            btn.disabled = true;
 
-            if (currentState === "AWAITING_DESCRIPTION") {{
+            if (currentState === "AWAITING_DESCRIPTION") {
                 currentDescription = text;
-            }} else if (currentState === "COLLECTING_QUESTIONS" || currentState === "COLLECTING_REQUIRED") {{
-                if (currentQuestionTarget) {{
+            } else if (currentState === "COLLECTING") {
+                if (currentQuestionTarget) {
                     collectedAnswers[currentQuestionTarget] = text;
-                }}
-            }}
+                }
+            }
 
-            addMessage('Analisando sua solicitação...', 'bot');
-            const loadingMsg = document.getElementById('chat-box').lastChild;
+            const loading = addMessage('Analisando...', 'loading-msg');
 
-            try {{
-                const response = await fetch(webhookUrl, {{
+            try {
+                const res = await fetch(API_URL, {
                     method: 'POST',
-                    headers: {{ 'Content-Type': 'application/json' }},
-                    body: JSON.stringify({{
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
                         description: currentDescription,
                         answers: collectedAnswers
-                    }})
-                }});
+                    })
+                });
 
-                const data = await response.json();
-                loadingMsg.remove();
+                const data = await res.json();
+                loading.remove();
 
-                const payload = data.output || data;
+                if (data.status === "need_more_info") {
+                    currentState = "COLLECTING";
+                    const questions = data.questions || [];
+                    currentQuestionTarget = questions.find(q => !collectedAnswers[q]);
+                    if (currentQuestionTarget) {
+                        addMessage(data.message + '\\n\\n👉 ' + currentQuestionTarget, 'bot-msg');
+                    }
 
-                if (payload.status === "need_more_info") {{
-                    currentState = "COLLECTING_QUESTIONS";
-                    questionQueue = payload.questions || [];
-                    currentQuestionTarget = questionQueue.find(q => !collectedAnswers[q]);
-                    if (currentQuestionTarget) {{
-                        addMessage(payload.message + '\\n\\n👉 ' + currentQuestionTarget, 'bot');
-                    }}
-                }} else if (payload.status === "missing_required") {{
-                    currentState = "COLLECTING_REQUIRED";
-                    questionQueue = payload.required_fields || [];
-                    currentQuestionTarget = questionQueue.find(q => !collectedAnswers[q]);
-                    if (currentQuestionTarget) {{
-                        addMessage(payload.message + '\\n\\nPor favor, informe:\\n👉 ' + currentQuestionTarget, 'bot');
-                    }}
-                }} else if (payload.status === "registered") {{
+                } else if (data.status === "missing_required") {
+                    currentState = "COLLECTING";
+                    const fields = data.required_fields || [];
+                    currentQuestionTarget = fields.find(q => !collectedAnswers[q]);
+                    if (currentQuestionTarget) {
+                        addMessage(data.message + '\\nInforme:\\n👉 ' + currentQuestionTarget, 'bot-msg');
+                    }
+
+                } else if (data.status === "registered") {
                     currentState = "FINISHED";
-                    let msg = '✅ Chamado registrado com sucesso!\\n\\n';
-                    msg += '• Ticket: ' + payload.ticket_id + '\\n';
-                    msg += '• Serviço: ' + payload.service + ' / ' + payload.category + '\\n';
-                    msg += '• Prioridade: ' + payload.priority + '\\n';
-                    msg += '• Prazo: ' + payload.estimated_resolution_time + '\\n\\n';
-                    msg += 'Instruções:\\n' + payload.resolution_steps;
-                    if (payload.workaround) msg += '\\n\\nContorno:\\n' + payload.workaround;
-                    if (payload.escalation_required) msg += '\\n\\n⚠️ Caso escalado para atendimento humano prioritário.';
-                    addMessage(msg, 'bot');
+                    let msg = 'Chamado registrado!\\n\\n';
+                    msg += 'Ticket: ' + data.ticket_id + '\\n';
+                    msg += 'Servico: ' + data.service + ' / ' + data.category + '\\n';
+                    msg += 'Prioridade: ' + data.priority + '\\n';
+                    msg += 'Prazo: ' + data.estimated_resolution_time + '\\n\\n';
+                    msg += 'Proximos passos:\\n' + data.resolution_steps;
+                    if (data.workaround) msg += '\\n\\nContorno:\\n' + data.workaround;
+                    if (data.escalation_required) msg += '\\n\\nEscalado para analista humano.';
+                    addMessage(msg, 'bot-msg');
                     document.getElementById('user-input').disabled = true;
-                }} else {{
-                    addMessage(payload.resposta || JSON.stringify(payload), 'bot');
-                }}
-            }} catch (error) {{
-                loadingMsg.remove();
-                addMessage('Erro de comunicação com o servidor. Tente novamente.', 'bot');
-                console.error(error);
-            }}
-        }}
+                    btn.disabled = true;
 
-        function handleKeyPress(e) {{
+                } else {
+                    addMessage(JSON.stringify(data), 'bot-msg');
+                }
+
+            } catch (err) {
+                loading.remove();
+                addMessage('Erro ao conectar. Tente novamente.', 'bot-msg');
+                console.error(err);
+            }
+
+            btn.disabled = false;
+            input.focus();
+        }
+
+        function handleKeyPress(e) {
             if (e.key === 'Enter') sendMessage();
-        }}
+        }
     </script>
 </body>
 </html>"""
