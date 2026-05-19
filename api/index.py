@@ -129,7 +129,7 @@ def chat_interface():
         </div>
 
         <script>
-            const webhookUrl = "{N8N_WEBHOOK_URL}";
+            const webhookUrl = https://eduardol.app.n8n.cloud/webhook-test/chat-suporte
             
             // Variáveis globais para controle do Estado da Conversa (Memória)
             let currentDescription = "";
