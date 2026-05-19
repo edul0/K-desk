@@ -13,7 +13,7 @@ ARTICLES = load_kb(Path(KB_FILE))
 
 N8N_WEBHOOK_URL = os.environ.get(
     "N8N_WEBHOOK_URL",
-    "https://eduardol.app.n8n.cloud/webhook/chat-suporte"
+    "https://eduardol.app.n8n.cloud/webhook/chat"
 )
 
 
