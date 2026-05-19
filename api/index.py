@@ -8,7 +8,6 @@ from agent_core import load_kb, triage
 
 app = Flask(__name__)
 
-# Resolve o CSV relativo ao index.py, independente do working directory na Vercel
 KB_FILE = Path(__file__).parent.parent / "data" / "support_knowledge_base.csv"
 ARTICLES = load_kb(KB_FILE)
 
@@ -18,11 +17,7 @@ def home():
     return jsonify({
         "name": "K-desk API",
         "status": "online",
-        "endpoints": {
-            "health": "/api/health",
-            "triage": "/api/triage",
-            "chat": "/chat"
-        }
+        "endpoints": {"health": "/api/health", "triage": "/api/triage", "chat": "/chat"}
     }), 200
 
 
@@ -97,231 +92,306 @@ def health():
 
 @app.route("/chat", methods=["GET"])
 def chat_interface():
-    html = """<!DOCTYPE html>
+    html = r"""<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Suporte TI - K-Desk</title>
-    <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background: #f0f2f5;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-        }
-        #chat-container {
-            width: 440px;
-            height: 620px;
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 8px 30px rgba(0,0,0,0.12);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-        #chat-header {
-            background: #0070f3;
-            color: white;
-            padding: 18px 20px;
-            text-align: center;
-            font-weight: 600;
-            font-size: 15px;
-            letter-spacing: 0.3px;
-        }
-        #chat-header small {
-            display: block;
-            font-size: 11px;
-            opacity: 0.8;
-            margin-top: 2px;
-            font-weight: 400;
-        }
-        #chat-box {
-            flex: 1;
-            padding: 16px;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            background: #f8f9fa;
-        }
-        .message {
-            max-width: 82%;
-            padding: 10px 14px;
-            border-radius: 12px;
-            font-size: 14px;
-            line-height: 1.5;
-            white-space: pre-line;
-        }
-        .bot-msg {
-            background: #fff;
-            color: #1a1a1a;
-            align-self: flex-start;
-            border-bottom-left-radius: 3px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-        }
-        .user-msg {
-            background: #0070f3;
-            color: white;
-            align-self: flex-end;
-            border-bottom-right-radius: 3px;
-        }
-        .loading-msg {
-            background: #fff;
-            color: #999;
-            align-self: flex-start;
-            border-bottom-left-radius: 3px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-            font-style: italic;
-        }
-        #input-area {
-            display: flex;
-            padding: 12px 14px;
-            border-top: 1px solid #eee;
-            background: white;
-            gap: 8px;
-        }
-        #user-input {
-            flex: 1;
-            padding: 10px 14px;
-            border: 1.5px solid #ddd;
-            border-radius: 8px;
-            outline: none;
-            font-size: 14px;
-            transition: border-color 0.2s;
-        }
-        #user-input:focus { border-color: #0070f3; }
-        #send-btn {
-            padding: 10px 18px;
-            background: #0070f3;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: 600;
-            font-size: 14px;
-            transition: background 0.2s;
-        }
-        #send-btn:hover { background: #005bb5; }
-        #send-btn:disabled { background: #aaa; cursor: not-allowed; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>K-Desk · Suporte de TI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',sans-serif;background:#f4f6f9;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:16px}
+#app{width:440px;max-width:100%;display:flex;flex-direction:column;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.10);background:#fff}
+
+/* HEAD */
+.kd-head{padding:14px 18px;background:#fff;border-bottom:1px solid #f0f2f5;display:flex;align-items:center;justify-content:space-between}
+.kd-logo{width:34px;height:34px;border-radius:9px;background:#dbeafe;display:flex;align-items:center;justify-content:center}
+.kd-logo svg{width:18px;height:18px;stroke:#1d4ed8;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.kd-brand{margin-left:10px}
+.kd-brand-name{font-size:14px;font-weight:600;color:#111827}
+.kd-brand-sub{font-size:11px;color:#6b7280;margin-top:1px}
+.kd-online{display:flex;align-items:center;gap:5px;font-size:11px;color:#16a34a;font-family:'JetBrains Mono',monospace}
+.kd-dot{width:6px;height:6px;border-radius:50%;background:#16a34a;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* STEPS */
+.kd-steps{display:flex;border-bottom:1px solid #f0f2f5;background:#fafafa}
+.kd-step{flex:1;padding:10px 0;text-align:center;font-size:11px;color:#9ca3af;border-bottom:2px solid transparent;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:5px;font-weight:500}
+.kd-step svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.kd-step.active{color:#1d4ed8;border-bottom-color:#1d4ed8}
+.kd-step.done{color:#16a34a}
+
+/* SCREENS */
+.screen{display:none;flex-direction:column;animation:fadeIn .2s ease}
+.screen.on{display:flex}
+@keyframes fadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+
+/* WELCOME */
+#s-welcome{padding:32px 28px 28px;align-items:center;gap:20px}
+.welcome-icon{width:56px;height:56px;border-radius:16px;background:#dbeafe;display:flex;align-items:center;justify-content:center}
+.welcome-icon svg{width:28px;height:28px;stroke:#1d4ed8;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.welcome-title{font-size:17px;font-weight:600;color:#111827;text-align:center}
+.welcome-sub{font-size:13px;color:#6b7280;text-align:center;line-height:1.65;max-width:320px}
+.form-fields{width:100%;display:flex;flex-direction:column;gap:14px}
+.form-group{display:flex;flex-direction:column;gap:5px}
+.form-label{font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.6px;font-weight:500}
+.form-input{width:100%;padding:10px 13px;border:1px solid #e5e7eb;border-radius:8px;font-size:13.5px;font-family:'Inter',sans-serif;color:#111827;outline:none;transition:border-color .2s,box-shadow .2s;background:#fff}
+.form-input:focus{border-color:#1d4ed8;box-shadow:0 0 0 3px rgba(29,78,216,.08)}
+.form-input::placeholder{color:#9ca3af}
+.btn-primary{width:100%;padding:11px;background:#1d4ed8;border:none;border-radius:9px;color:#fff;font-size:13.5px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;transition:background .2s,transform .1s;display:flex;align-items:center;justify-content:center;gap:7px;margin-top:4px}
+.btn-primary:hover{background:#1e40af}
+.btn-primary:active{transform:scale(.99)}
+.btn-primary:disabled{background:#9ca3af;cursor:not-allowed}
+.btn-primary svg{width:15px;height:15px;stroke:#fff;fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+
+/* CHAT */
+.userbar{padding:9px 16px;border-bottom:1px solid #f0f2f5;background:#fafafa;display:flex;align-items:center;gap:9px}
+.avatar{width:28px;height:28px;border-radius:50%;background:#dbeafe;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:#1d4ed8;flex-shrink:0}
+.userbar-name{font-size:12.5px;font-weight:500;color:#111827}
+.userbar-email{font-size:11px;color:#6b7280;font-family:'JetBrains Mono',monospace}
+#chat-box{flex:1;min-height:280px;max-height:320px;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px;scrollbar-width:thin;scrollbar-color:#e5e7eb transparent}
+.msg{display:flex;flex-direction:column;max-width:87%;animation:fadeIn .15s ease}
+.msg.bot{align-self:flex-start}
+.msg.usr{align-self:flex-end}
+.bubble{padding:9px 13px;border-radius:12px;font-size:13.5px;line-height:1.55;white-space:pre-line}
+.msg.bot .bubble{background:#f3f4f6;color:#111827;border-bottom-left-radius:3px}
+.msg.usr .bubble{background:#1d4ed8;color:#fff;border-bottom-right-radius:3px}
+.msg.typing .bubble{background:#f3f4f6;color:#9ca3af}
+.msg-time{font-size:10px;color:#9ca3af;margin-top:3px;padding:0 3px;font-family:'JetBrains Mono',monospace}
+.msg.usr .msg-time{text-align:right;color:#93c5fd}
+.dots{display:inline-flex;gap:3px;align-items:center}
+.dots span{width:5px;height:5px;border-radius:50%;background:#9ca3af;animation:dotpulse 1.2s infinite}
+.dots span:nth-child(2){animation-delay:.2s}.dots span:nth-child(3){animation-delay:.4s}
+@keyframes dotpulse{0%,80%,100%{transform:scale(.7);opacity:.5}40%{transform:scale(1);opacity:1}}
+.input-row{padding:10px 13px;border-top:1px solid #f0f2f5;display:flex;gap:8px;background:#fff}
+#chat-input{flex:1;padding:10px 13px;border:1px solid #e5e7eb;border-radius:8px;font-size:13.5px;font-family:'Inter',sans-serif;color:#111827;outline:none;transition:border-color .2s}
+#chat-input:focus{border-color:#1d4ed8}
+#chat-input::placeholder{color:#9ca3af}
+#btn-send{padding:10px 16px;background:#1d4ed8;border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;transition:background .2s;white-space:nowrap}
+#btn-send:hover{background:#1e40af}
+#btn-send:disabled{background:#9ca3af;cursor:not-allowed}
+
+/* TICKET */
+#s-ticket{padding:22px 20px;gap:14px;overflow-y:auto}
+.tick-header{display:flex;align-items:center;gap:12px}
+.tick-icon{width:42px;height:42px;border-radius:11px;background:#dcfce7;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.tick-icon svg{width:22px;height:22px;stroke:#16a34a;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.tick-title{font-size:15px;font-weight:600;color:#16a34a}
+.tick-id{font-size:11px;color:#6b7280;font-family:'JetBrains Mono',monospace;margin-top:2px}
+.divider{height:1px;background:#f0f2f5}
+.tick-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.tick-field{background:#fafafa;border:1px solid #f0f2f5;border-radius:9px;padding:10px 12px;display:flex;flex-direction:column;gap:4px}
+.tick-field.full{grid-column:1/-1}
+.tick-label{font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:.7px;font-weight:500}
+.tick-value{font-size:13px;color:#111827;font-weight:500;line-height:1.45}
+.badge{display:inline-block;padding:3px 9px;border-radius:6px;font-size:11px;font-family:'JetBrains Mono',monospace;font-weight:500}
+.badge-c{background:#fee2e2;color:#991b1b}
+.badge-a{background:#fef3c7;color:#92400e}
+.badge-m{background:#dbeafe;color:#1e3a8a}
+.badge-b{background:#dcfce7;color:#14532d}
+.esc-alert{background:#fef2f2;border:1px solid #fecaca;border-radius:9px;padding:10px 13px;font-size:12.5px;color:#b91c1c;display:flex;align-items:flex-start;gap:8px}
+.esc-alert svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;margin-top:1px}
+.btn-new{width:100%;padding:10px;background:#fff;border:1px solid #e5e7eb;border-radius:9px;color:#6b7280;font-size:13px;font-family:'Inter',sans-serif;cursor:pointer;transition:border-color .2s,color .2s;margin-top:2px;display:flex;align-items:center;justify-content:center;gap:6px}
+.btn-new:hover{border-color:#1d4ed8;color:#1d4ed8}
+.btn-new svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+</style>
 </head>
 <body>
-    <div id="chat-container">
-        <div id="chat-header">
-            Centro de Suporte Inteligente
-            <small>K-Desk &middot; Atendimento Automatizado</small>
-        </div>
-        <div id="chat-box">
-            <div class="message bot-msg">Olá! Descreva o seu problema ou incidente de TI e vou registrar um chamado para você.</div>
-        </div>
-        <div id="input-area">
-            <input type="text" id="user-input" placeholder="Descreva seu problema..." onkeypress="handleKeyPress(event)">
-            <button id="send-btn" onclick="sendMessage()">Enviar</button>
-        </div>
+<div id="app">
+
+  <div class="kd-head">
+    <div style="display:flex;align-items:center">
+      <div class="kd-logo">
+        <svg viewBox="0 0 24 24"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/></svg>
+      </div>
+      <div class="kd-brand">
+        <div class="kd-brand-name">K-Desk</div>
+        <div class="kd-brand-sub">Central de suporte de TI</div>
+      </div>
     </div>
+    <div class="kd-online"><div class="kd-dot"></div>online</div>
+  </div>
 
-    <script>
-        const API_URL = "https://eduardol.app.n8n.cloud/webhook/chat";
-        let currentDescription = "";
-        let collectedAnswers = {};
-        let currentState = "AWAITING_DESCRIPTION";
-        let currentQuestionTarget = "";
+  <div class="kd-steps">
+    <div class="kd-step active" id="step-1">
+      <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      Identificação
+    </div>
+    <div class="kd-step" id="step-2">
+      <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      Atendimento
+    </div>
+    <div class="kd-step" id="step-3">
+      <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+      Chamado
+    </div>
+  </div>
 
-        function addMessage(text, type) {
-            const chatBox = document.getElementById('chat-box');
-            const div = document.createElement('div');
-            div.className = 'message ' + type;
-            div.innerText = text;
-            chatBox.appendChild(div);
-            chatBox.scrollTop = chatBox.scrollHeight;
-            return div;
-        }
+  <!-- TELA 1: IDENTIFICAÇÃO -->
+  <div class="screen on" id="s-welcome">
+    <div class="welcome-icon">
+      <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+    </div>
+    <div class="welcome-title">Bem-vindo ao suporte inteligente</div>
+    <div class="welcome-sub">Preencha seus dados para iniciar. O agente vai conduzir o atendimento e registrar seu chamado automaticamente.</div>
+    <div class="form-fields">
+      <div class="form-group">
+        <label class="form-label" for="inp-name">Nome completo</label>
+        <input class="form-input" id="inp-name" type="text" placeholder="Seu nome" autocomplete="name">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="inp-email">E-mail corporativo</label>
+        <input class="form-input" id="inp-email" type="email" placeholder="voce@empresa.com" autocomplete="email">
+      </div>
+      <button class="btn-primary" onclick="kdStart()">
+        Iniciar atendimento
+        <svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </button>
+    </div>
+  </div>
 
-        async function sendMessage() {
-            const input = document.getElementById('user-input');
-            const btn = document.getElementById('send-btn');
-            const text = input.value.trim();
-            if (!text) return;
+  <!-- TELA 2: CHAT -->
+  <div class="screen" id="s-chat">
+    <div class="userbar">
+      <div class="avatar" id="kd-initials">—</div>
+      <div>
+        <div class="userbar-name" id="kd-uname">—</div>
+        <div class="userbar-email" id="kd-uemail">—</div>
+      </div>
+    </div>
+    <div id="chat-box"></div>
+    <div class="input-row">
+      <input id="chat-input" type="text" placeholder="Descreva seu problema de TI..." onkeydown="if(event.key==='Enter')kdSend()">
+      <button id="btn-send" onclick="kdSend()">Enviar</button>
+    </div>
+  </div>
 
-            addMessage(text, 'user-msg');
-            input.value = '';
-            btn.disabled = true;
+  <!-- TELA 3: TICKET -->
+  <div class="screen" id="s-ticket">
+    <div class="tick-header">
+      <div class="tick-icon">
+        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <div>
+        <div class="tick-title">Chamado registrado com sucesso</div>
+        <div class="tick-id" id="kt-id">—</div>
+      </div>
+    </div>
+    <div class="divider"></div>
+    <div class="tick-grid">
+      <div class="tick-field"><span class="tick-label">Serviço</span><span class="tick-value" id="kt-svc">—</span></div>
+      <div class="tick-field"><span class="tick-label">Categoria</span><span class="tick-value" id="kt-cat">—</span></div>
+      <div class="tick-field"><span class="tick-label">Prioridade</span><span class="tick-value" id="kt-pri">—</span></div>
+      <div class="tick-field"><span class="tick-label">Prazo estimado</span><span class="tick-value" id="kt-eta">—</span></div>
+      <div class="tick-field full"><span class="tick-label">Artigo de referência</span><span class="tick-value" id="kt-art">—</span></div>
+      <div class="tick-field full"><span class="tick-label">Próximos passos</span><span class="tick-value" id="kt-steps">—</span></div>
+      <div class="tick-field full" id="kt-wblock" style="display:none"><span class="tick-label">Contorno disponível</span><span class="tick-value" id="kt-wk">—</span></div>
+    </div>
+    <div class="esc-alert" id="kt-esc" style="display:none">
+      <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      Chamado encaminhado para analista humano conforme critérios de escalonamento.
+    </div>
+    <button class="btn-new" onclick="kdReset()">
+      <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Abrir novo chamado
+    </button>
+  </div>
 
-            if (currentState === "AWAITING_DESCRIPTION") {
-                currentDescription = text;
-            } else if (currentState === "COLLECTING") {
-                if (currentQuestionTarget) {
-                    collectedAnswers[currentQuestionTarget] = text;
-                }
-            }
+</div>
+<script>
+const N8N = "https://eduardol.app.n8n.cloud/webhook/chat";
+let uName="",uEmail="",desc="",ans={},state="INIT",curQ="";
 
-            const loading = addMessage('Analisando...', 'loading-msg');
+function kdScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));document.getElementById(id).classList.add('on')}
+function kdStep(n){[1,2,3].forEach(i=>{const e=document.getElementById('step-'+i);e.classList.remove('active','done');if(i<n)e.classList.add('done');else if(i===n)e.classList.add('active')})}
+function kdTime(){return new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}
 
-            try {
-                const res = await fetch(API_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        description: currentDescription,
-                        answers: collectedAnswers
-                    })
-                });
+function kdMsg(type,text){
+  const box=document.getElementById('chat-box');
+  const d=document.createElement('div');d.className='msg '+type;
+  const b=document.createElement('div');b.className='bubble';b.textContent=text;
+  const m=document.createElement('div');m.className='msg-time';m.textContent=kdTime();
+  d.appendChild(b);d.appendChild(m);box.appendChild(d);box.scrollTop=box.scrollHeight;return d;
+}
+function kdTyping(){
+  const box=document.getElementById('chat-box');
+  const d=document.createElement('div');d.className='msg typing';d.id='kd-typing';
+  d.innerHTML='<div class="bubble"><span class="dots"><span></span><span></span><span></span></span></div>';
+  box.appendChild(d);box.scrollTop=box.scrollHeight;
+}
+function kdRmTyping(){const e=document.getElementById('kd-typing');if(e)e.remove()}
 
-                const data = await res.json();
-                loading.remove();
+function kdStart(){
+  const n=document.getElementById('inp-name').value.trim();
+  const e=document.getElementById('inp-email').value.trim();
+  if(!n||!e){alert('Preencha nome e e-mail para continuar.');return}
+  uName=n;uEmail=e;
+  const ini=n.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
+  document.getElementById('kd-initials').textContent=ini;
+  document.getElementById('kd-uname').textContent=n;
+  document.getElementById('kd-uemail').textContent=e;
+  kdStep(2);kdScreen('s-chat');state="DESC";
+  kdMsg('bot',`Olá, ${n}! Descreva seu problema ou incidente de TI com o máximo de detalhes.`);
+  document.getElementById('chat-input').focus();
+}
 
-                if (data.status === "need_more_info") {
-                    currentState = "COLLECTING";
-                    const questions = data.questions || [];
-                    currentQuestionTarget = questions.find(q => !collectedAnswers[q]);
-                    if (currentQuestionTarget) {
-                        addMessage(data.message + '\\n\\n👉 ' + currentQuestionTarget, 'bot-msg');
-                    }
+async function kdSend(){
+  const inp=document.getElementById('chat-input');
+  const btn=document.getElementById('btn-send');
+  const text=inp.value.trim();
+  if(!text)return;
+  kdMsg('usr',text);inp.value='';btn.disabled=true;
+  if(state==="DESC")desc=text;
+  else if(state==="COLLECT"&&curQ)ans[curQ]=text;
+  kdTyping();
+  try{
+    const r=await fetch(N8N,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({description:desc,answers:ans,requester_name:uName,requester_email:uEmail})});
+    const d=await r.json();kdRmTyping();
+    if(d.status==="need_more_info"){
+      state="COLLECT";const qs=d.questions||[];curQ=qs.find(q=>!ans[q])||qs[0];
+      if(curQ)kdMsg('bot',`Para classificar corretamente, preciso de mais informações:\n\n→ ${curQ}`);
+    }else if(d.status==="missing_required"){
+      state="COLLECT";const fs=d.required_fields||[];curQ=fs.find(f=>!ans[f])||fs[0];
+      if(curQ)kdMsg('bot',`Quase lá! Preciso de uma informação antes de registrar:\n\n→ ${curQ}`);
+    }else if(d.status==="registered"){
+      kdStep(3);kdShowTicket(d);
+    }else{kdMsg('bot','Resposta inesperada. Tente novamente.')}
+  }catch(e){kdRmTyping();kdMsg('bot','Erro de conexão. Verifique sua rede e tente novamente.')}
+  btn.disabled=false;inp.focus();
+}
 
-                } else if (data.status === "missing_required") {
-                    currentState = "COLLECTING";
-                    const fields = data.required_fields || [];
-                    currentQuestionTarget = fields.find(q => !collectedAnswers[q]);
-                    if (currentQuestionTarget) {
-                        addMessage(data.message + '\\nInforme:\\n👉 ' + currentQuestionTarget, 'bot-msg');
-                    }
+function kdShowTicket(d){
+  document.getElementById('kt-id').textContent='Ticket: '+d.ticket_id;
+  document.getElementById('kt-svc').textContent=d.service||'—';
+  document.getElementById('kt-cat').textContent=d.category||'—';
+  document.getElementById('kt-eta').textContent=d.estimated_resolution_time||'—';
+  document.getElementById('kt-art').textContent=(d.kb_article_id||'')+' · '+(d.kb_article_title||'');
+  document.getElementById('kt-steps').textContent=d.resolution_steps||'—';
+  const p=(d.priority||'Média').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const bm={critica:'badge-c',alta:'badge-a',media:'badge-m',baixa:'badge-b'};
+  document.getElementById('kt-pri').innerHTML=`<span class="badge ${bm[p]||'badge-m'}">${d.priority}</span>`;
+  if(d.workaround){document.getElementById('kt-wk').textContent=d.workaround;document.getElementById('kt-wblock').style.display='flex'}
+  if(d.escalation_required)document.getElementById('kt-esc').style.display='flex';
+  kdScreen('s-ticket');
+}
 
-                } else if (data.status === "registered") {
-                    currentState = "FINISHED";
-                    let msg = 'Chamado registrado!\\n\\n';
-                    msg += 'Ticket: ' + data.ticket_id + '\\n';
-                    msg += 'Serviço: ' + data.service + ' / ' + data.category + '\\n';
-                    msg += 'Prioridade: ' + data.priority + '\\n';
-                    msg += 'Prazo: ' + data.estimated_resolution_time + '\\n\\n';
-                    msg += 'Próximos passos:\\n' + data.resolution_steps;
-                    if (data.workaround) msg += '\\n\\nContorno:\\n' + data.workaround;
-                    if (data.escalation_required) msg += '\\n\\n⚠️ Escalado para analista humano.';
-                    addMessage(msg, 'bot-msg');
-                    document.getElementById('user-input').disabled = true;
-                    btn.disabled = true;
+function kdReset(){
+  uName='';uEmail='';desc='';ans={};state='INIT';curQ='';
+  document.getElementById('inp-name').value='';document.getElementById('inp-email').value='';
+  document.getElementById('chat-box').innerHTML='';
+  document.getElementById('kt-wblock').style.display='none';
+  document.getElementById('kt-esc').style.display='none';
+  document.getElementById('chat-input').disabled=false;
+  document.getElementById('btn-send').disabled=false;
+  kdStep(1);kdScreen('s-welcome');
+}
 
-                } else {
-                    addMessage(JSON.stringify(data), 'bot-msg');
-                }
-
-            } catch (err) {
-                loading.remove();
-                addMessage('Erro ao conectar. Tente novamente.', 'bot-msg');
-                console.error(err);
-            }
-
-            btn.disabled = false;
-            input.focus();
-        }
-
-        function handleKeyPress(e) {
-            if (e.key === 'Enter') sendMessage();
-        }
-    </script>
+document.addEventListener('keydown',function(e){
+  if(e.key==='Enter'&&document.getElementById('s-welcome').classList.contains('on'))kdStart();
+});
+</script>
 </body>
 </html>"""
     return html, 200
