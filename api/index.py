@@ -31,19 +31,29 @@ def triage_route():
     requester_email = (data.get("requester_email") or "não informado").strip()
     description = (data.get("description") or "").strip()
     answers = data.get("answers") or {}
+    
+    # ROTA DE FUGA: Identifica se o usuário acionou o botão de falar com humano
+    force_escalation = data.get("force_escalation", False)
 
     if not description:
         return jsonify({"error": "Campo 'description' é obrigatório"}), 400
 
     status, payload = triage(description, answers, ARTICLES)
 
+    # BYPASS: Se forçado, ignora a triagem técnica do agente e registra na hora
+    if force_escalation:
+        status = "registered"
+        payload["escalation"] = True
+        if "priority" not in payload:
+            payload["priority"] = "Alta"
+
     if status in {"need_more_info", "missing_required"}:
         return jsonify({"status": status, **payload}), 200
 
     article = payload["article"]
     priority = payload["priority"]
-    eta = payload["eta"]
-    escalation = payload["escalation"]
+    eta = payload.get("eta", "N/A")
+    escalation = payload.get("escalation", False)
 
     try:
         from google_sheets_store import append_ticket
@@ -327,33 +337,72 @@ function kdStart(){
   document.getElementById('chat-input').focus();
 }
 
-async function kdSend(){
+async function kdSend(force = false){
   const inp=document.getElementById('chat-input');
   const btn=document.getElementById('btn-send');
-  const text=inp.value.trim();
-  if(!text)return;
-  kdMsg('usr',text);inp.value='';btn.disabled=true;
-  if(state==="DESC")desc=text;
-  else if(state==="COLLECT"&&curQ)ans[curQ]=text;
+  let text = inp.value.trim();
+
+  // Se o botão de fuga for clicado, enviamos uma mensagem automática no balão do usuário
+  if(force) {
+     text = "Prefiro finalizar agora e falar com um atendente humano.";
+     kdMsg('usr', text);
+  } else {
+     if(!text) return;
+     kdMsg('usr', text); 
+     inp.value=''; 
+     btn.disabled=true;
+     
+     if(state==="DESC") desc=text;
+     else if(state==="COLLECT" && curQ) ans[curQ]=text;
+  }
+
   kdTyping();
   try{
-    const r=await fetch(N8N,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({description:desc,answers:ans,requester_name:uName,requester_email:uEmail})});
-    const d=await r.json();kdRmTyping();
+    const r=await fetch(N8N,{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+            description:desc, 
+            answers:ans, 
+            requester_name:uName, 
+            requester_email:uEmail, 
+            force_escalation: force // Manda a flag pro Python forçar o registro
+        })
+    });
+    const d=await r.json(); kdRmTyping();
     
-    if(d.status==="need_more_info"){
-      state="COLLECT";const qs=d.questions||[];curQ=qs.find(q=>!ans[q])||qs[0];
-      if(curQ)kdMsg('bot', d.ai_message || `Para classificar corretamente, preciso de mais informações:\n\n→ ${curQ}`);
-    }else if(d.status==="missing_required"){
-      state="COLLECT";const fs=d.required_fields||[];curQ=fs.find(f=>!ans[f])||fs[0];
-      if(curQ)kdMsg('bot', d.ai_message || `Quase lá! Preciso de uma informação antes de registrar:\n\n→ ${curQ}`);
+    if(d.status==="need_more_info" || d.status==="missing_required"){
+      state="COLLECT";
+      const arr = d.questions || d.required_fields || [];
+      curQ = arr.find(q => !ans[q]) || arr[0];
+      
+      let botText = d.ai_message || `Preciso de mais informações:\n\n→ ${curQ}`;
+      
+      // Se a IA já fez pelo menos 1 pergunta antes, ela oferece a saída
+      if(Object.keys(ans).length >= 1 && !document.getElementById('btn-force')) {
+         botText += "\n\nSe preferir, posso parar de perguntar e enviar este chamado direto para um analista humano. O que acha?";
+         kdMsg('bot', botText);
+         
+         // Injeta o botão de escalonamento abaixo da mensagem
+         const box=document.getElementById('chat-box');
+         const dEsc = document.createElement('div');
+         dEsc.innerHTML = `<button id="btn-force" onclick="this.remove(); kdSend(true)" style="margin-top:5px; padding:10px 14px; background:#ef4444; color:white; border:none; border-radius:8px; cursor:pointer; font-size:13px; font-weight:600; font-family:'Inter',sans-serif; transition: background 0.2s;">Finalizar e chamar humano</button>`;
+         dEsc.style.textAlign = 'left'; dEsc.style.marginLeft = '10px'; dEsc.style.marginBottom = '10px';
+         box.appendChild(dEsc);
+         box.scrollTop=box.scrollHeight;
+      } else {
+         kdMsg('bot', botText);
+      }
+
     }else if(d.status==="registered"){
-      kdStep(3);kdShowTicket(d);
+      kdStep(3); kdShowTicket(d);
     }else{
       kdMsg('bot', d.ai_message || 'Resposta inesperada. Tente novamente.');
     }
     
-  }catch(e){kdRmTyping();kdMsg('bot','Erro de conexão. Verifique sua rede e tente novamente.')}
-  btn.disabled=false;inp.focus();
+  }catch(e){kdRmTyping(); kdMsg('bot','Erro de conexão. Verifique sua rede e tente novamente.')}
+  
+  if(!force) { btn.disabled=false; inp.focus(); }
 }
 
 function kdShowTicket(d){
