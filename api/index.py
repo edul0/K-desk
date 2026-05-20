@@ -13,13 +13,7 @@ ARTICLES = load_kb(KB_FILE)
 
 
 @app.route("/", methods=["GET"])
-def home():
-    return jsonify({
-        "name": "K-desk API",
-        "status": "online",
-        "endpoints": {"health": "/api/health", "triage": "/api/triage", "chat": "/chat"}
-    }), 200
-
+"/api/triage
 
 @app.route("/api/triage", methods=["POST"])
 def triage_route():
