@@ -717,20 +717,26 @@
     if (el) el.remove();
   }
 
-  async function sendMessage() {
+  async function sendMessage(force = false) {
     const input = document.getElementById('chat-input');
     const btn = document.getElementById('btn-send');
-    const text = input.value.trim();
-    if (!text) return;
+    let text = input.value.trim();
 
-    addMsg('user', text);
-    input.value = '';
-    btn.disabled = true;
+    // ROTA DE FUGA: Se o botão foi clicado, manda o usuário falar
+    if (force) {
+      text = "Prefiro finalizar agora e falar com um atendente humano.";
+      addMsg('user', text);
+    } else {
+      if (!text) return;
+      addMsg('user', text);
+      input.value = '';
+      btn.disabled = true;
 
-    if (state === "AWAITING_DESCRIPTION") {
-      currentDescription = text;
-    } else if (state === "COLLECTING" && currentQuestion) {
-      collectedAnswers[currentQuestion] = text;
+      if (state === "AWAITING_DESCRIPTION") {
+        currentDescription = text;
+      } else if (state === "COLLECTING" && currentQuestion) {
+        collectedAnswers[currentQuestion] = text;
+      }
     }
 
     addTyping();
@@ -743,29 +749,39 @@
           description: currentDescription,
           answers: collectedAnswers,
           requester_name: userName,
-          requester_email: userEmail
+          requester_email: userEmail,
+          force_escalation: force // Manda a flag pro Python forçar o registro
         })
       });
 
       const data = await res.json();
       removeTyping();
 
-      if (data.status === "need_more_info") {
+      if (data.status === "need_more_info" || data.status === "missing_required") {
         state = "COLLECTING";
-        setProgress(50);
-        const questions = data.questions || [];
-        currentQuestion = questions.find(q => !collectedAnswers[q]) || questions[0];
-        if (currentQuestion) {
-          addMsg('bot', `Para classificar corretamente, preciso de mais informações:\n\n👉 ${currentQuestion}`);
-        }
+        setProgress(data.status === "need_more_info" ? 50 : 66);
+        
+        const arr = data.questions || data.required_fields || [];
+        currentQuestion = arr.find(q => !collectedAnswers[q]) || arr[0];
 
-      } else if (data.status === "missing_required") {
-        state = "COLLECTING";
-        setProgress(66);
-        const fields = data.required_fields || [];
-        currentQuestion = fields.find(f => !collectedAnswers[f]) || fields[0];
-        if (currentQuestion) {
-          addMsg('bot', `Quase lá! Antes de registrar, preciso de uma informação:\n\n👉 ${currentQuestion}`);
+        // Lê a mensagem do Mistral (ai_message) ou usa o fallback padrão
+        let botText = data.ai_message || `Preciso de mais informações:\n\n👉 ${currentQuestion}`;
+
+        // Se a IA já coletou pelo menos 1 resposta antes, oferece o botão de saída
+        if (Object.keys(collectedAnswers).length >= 1 && !document.getElementById('btn-force')) {
+          botText += "\n\nSe preferir, posso parar de perguntar e enviar este chamado direto para um analista humano. O que acha?";
+          addMsg('bot', botText);
+
+          // Injeta o botão usando o seu tema atual
+          const box = document.getElementById('chat-messages');
+          const dEsc = document.createElement('div');
+          dEsc.innerHTML = `<button id="btn-force" onclick="this.remove(); sendMessage(true)" style="margin-top:6px; padding:10px 14px; background:var(--danger); color:white; border:none; border-radius:8px; cursor:pointer; font-size:13px; font-weight:600; font-family:var(--sans); transition: opacity 0.2s;">Finalizar e chamar humano</button>`;
+          dEsc.style.textAlign = 'left';
+          dEsc.style.marginLeft = '12px';
+          box.appendChild(dEsc);
+          box.scrollTop = box.scrollHeight;
+        } else {
+          if (currentQuestion) addMsg('bot', botText);
         }
 
       } else if (data.status === "registered") {
@@ -773,7 +789,7 @@
         showTicket(data);
 
       } else {
-        addMsg('bot', 'Resposta inesperada. Tente novamente.');
+        addMsg('bot', data.ai_message || 'Resposta inesperada. Tente novamente.');
       }
 
     } catch (err) {
@@ -782,63 +798,8 @@
       console.error(err);
     }
 
-    btn.disabled = false;
-    input.focus();
-  }
-
-  function showTicket(data) {
-    document.getElementById('t-id').textContent = 'Ticket: ' + data.ticket_id;
-    document.getElementById('t-service').textContent = data.service || '—';
-    document.getElementById('t-category').textContent = data.category || '—';
-    document.getElementById('t-eta').textContent = data.estimated_resolution_time || '—';
-    document.getElementById('t-article').textContent = `${data.kb_article_id} · ${data.kb_article_title}`;
-    document.getElementById('t-steps').textContent = data.resolution_steps || '—';
-
-    // Priority badge
-    const p = (data.priority || 'Média').toLowerCase().replace('í','i').replace('é','e');
-    const badgeMap = { critica: 'badge-critica', alta: 'badge-alta', media: 'badge-media', baixa: 'badge-baixa' };
-    const badgeClass = badgeMap[p] || 'badge-media';
-    document.getElementById('t-priority').innerHTML = `<span class="badge ${badgeClass}">${data.priority}</span>`;
-
-    // Workaround
-    if (data.workaround) {
-      document.getElementById('t-workaround').textContent = data.workaround;
-      document.getElementById('t-workaround-block').style.display = 'flex';
+    if (!force) {
+      btn.disabled = false;
+      input.focus();
     }
-
-    // Escalation
-    if (data.escalation_required) {
-      document.getElementById('t-escalation').style.display = 'flex';
-    }
-
-    showScreen('screen-ticket');
   }
-
-  function resetAll() {
-    userName = ""; userEmail = "";
-    currentDescription = ""; collectedAnswers = {};
-    state = "AWAITING_DESCRIPTION"; currentQuestion = "";
-    document.getElementById('input-name').value = '';
-    document.getElementById('input-email').value = '';
-    document.getElementById('chat-messages').innerHTML = '';
-    document.getElementById('t-workaround-block').style.display = 'none';
-    document.getElementById('t-escalation').style.display = 'none';
-    document.getElementById('chat-input').disabled = false;
-    document.getElementById('btn-send').disabled = false;
-    setProgress(0);
-    showScreen('screen-welcome');
-  }
-
-  function handleKey(e) {
-    if (e.key === 'Enter') sendMessage();
-  }
-
-  // Enter no form de identificação
-  document.addEventListener('keypress', function(e) {
-    if (e.key === 'Enter' && document.getElementById('screen-welcome').classList.contains('active')) {
-      startChat();
-    }
-  });
-</script>
-</body>
-</html>
