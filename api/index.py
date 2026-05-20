@@ -13,7 +13,10 @@ ARTICLES = load_kb(KB_FILE)
 
 
 @app.route("/", methods=["GET"])
-"/api/triage
+def home():
+    from flask import redirect
+    return redirect("/chat")
+
 
 @app.route("/api/triage", methods=["POST"])
 def triage_route():
