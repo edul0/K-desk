@@ -1,6 +1,7 @@
 import json
 import os
 import uuid
+import urllib.request
 from pathlib import Path
 
 from flask import Flask, jsonify, request
@@ -12,10 +13,17 @@ app = Flask(__name__)
 KB_FILE = Path(__file__).parent.parent / "data" / "support_knowledge_base.csv"
 ARTICLES = load_kb(KB_FILE)
 
+N8N_WEBHOOK_URL = os.environ.get(
+    "N8N_WEBHOOK_URL",
+    "https://eduardol.app.n8n.cloud/webhook/chat"
+)
+
+
 @app.route("/", methods=["GET"])
 def home():
     from flask import redirect
     return redirect("/chat")
+
 
 @app.route("/api/triage", methods=["POST"])
 def triage_route():
@@ -31,8 +39,6 @@ def triage_route():
     requester_email = (data.get("requester_email") or "não informado").strip()
     description = (data.get("description") or "").strip()
     answers = data.get("answers") or {}
-    
-    # ROTA DE FUGA: Identifica se o usuário acionou o botão de falar com humano
     force_escalation = data.get("force_escalation", False)
 
     if not description:
@@ -40,9 +46,8 @@ def triage_route():
 
     status, payload = triage(description, answers, ARTICLES)
 
-    # BYPASS: Se forçado, ignora a triagem técnica do agente e registra na hora
     if force_escalation:
-        status = "registered"
+        status = "ready"
         payload["escalation"] = True
         if "priority" not in payload:
             payload["priority"] = "Alta"
@@ -89,9 +94,34 @@ def triage_route():
         "workaround": article.workaround,
     }), 200
 
+
+@app.route("/api/chat", methods=["POST"])
+def chat_proxy():
+    """Proxy para o n8n — evita CORS no navegador."""
+    data = request.get_json(silent=True) or {}
+    try:
+        body = json.dumps(data).encode("utf-8")
+        req = urllib.request.Request(
+            N8N_WEBHOOK_URL,
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            raw = resp.read().decode("utf-8")
+            try:
+                return jsonify(json.loads(raw)), 200
+            except Exception:
+                return jsonify({"ai_message": raw, "status": "need_more_info"}), 200
+    except Exception as e:
+        app.logger.error(f"Proxy n8n error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/health", methods=["GET"])
 def health():
     return jsonify({"ok": True, "kb_articles": len(ARTICLES)}), 200
+
 
 @app.route("/chat", methods=["GET"])
 def chat_interface():
@@ -107,8 +137,6 @@ def chat_interface():
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Inter',sans-serif;background:#f4f6f9;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:16px}
 #app{width:440px;max-width:100%;display:flex;flex-direction:column;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.10);background:#fff}
-
-/* HEAD */
 .kd-head{padding:14px 18px;background:#fff;border-bottom:1px solid #f0f2f5;display:flex;align-items:center;justify-content:space-between}
 .kd-logo{width:34px;height:34px;border-radius:9px;background:#dbeafe;display:flex;align-items:center;justify-content:center}
 .kd-logo svg{width:18px;height:18px;stroke:#1d4ed8;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
@@ -118,20 +146,14 @@ body{font-family:'Inter',sans-serif;background:#f4f6f9;display:flex;align-items:
 .kd-online{display:flex;align-items:center;gap:5px;font-size:11px;color:#16a34a;font-family:'JetBrains Mono',monospace}
 .kd-dot{width:6px;height:6px;border-radius:50%;background:#16a34a;animation:pulse 2s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
-
-/* STEPS */
 .kd-steps{display:flex;border-bottom:1px solid #f0f2f5;background:#fafafa}
 .kd-step{flex:1;padding:10px 0;text-align:center;font-size:11px;color:#9ca3af;border-bottom:2px solid transparent;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:5px;font-weight:500}
 .kd-step svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .kd-step.active{color:#1d4ed8;border-bottom-color:#1d4ed8}
 .kd-step.done{color:#16a34a}
-
-/* SCREENS */
 .screen{display:none;flex-direction:column;animation:fadeIn .2s ease}
 .screen.on{display:flex}
 @keyframes fadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
-
-/* WELCOME */
 #s-welcome{padding:32px 28px 28px;align-items:center;gap:20px}
 .welcome-icon{width:56px;height:56px;border-radius:16px;background:#dbeafe;display:flex;align-items:center;justify-content:center}
 .welcome-icon svg{width:28px;height:28px;stroke:#1d4ed8;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
@@ -148,8 +170,6 @@ body{font-family:'Inter',sans-serif;background:#f4f6f9;display:flex;align-items:
 .btn-primary:active{transform:scale(.99)}
 .btn-primary:disabled{background:#9ca3af;cursor:not-allowed}
 .btn-primary svg{width:15px;height:15px;stroke:#fff;fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
-
-/* CHAT */
 .userbar{padding:9px 16px;border-bottom:1px solid #f0f2f5;background:#fafafa;display:flex;align-items:center;gap:9px}
 .avatar{width:28px;height:28px;border-radius:50%;background:#dbeafe;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:#1d4ed8;flex-shrink:0}
 .userbar-name{font-size:12.5px;font-weight:500;color:#111827}
@@ -167,7 +187,7 @@ body{font-family:'Inter',sans-serif;background:#f4f6f9;display:flex;align-items:
 .dots{display:inline-flex;gap:3px;align-items:center}
 .dots span{width:5px;height:5px;border-radius:50%;background:#9ca3af;animation:dotpulse 1.2s infinite}
 .dots span:nth-child(2){animation-delay:.2s}.dots span:nth-child(3){animation-delay:.4s}
-@keyframes dotpulse{0%,80%,100%{transform:scale(.7);opacity:.5}40%{transform:scale(1);opacity:1}}
+@keyframes dotpulse{0%{transform:scale(.7);opacity:.5}40%{transform:scale(1);opacity:1}80%,100%{transform:scale(.7);opacity:.5}}
 .input-row{padding:10px 13px;border-top:1px solid #f0f2f5;display:flex;gap:8px;background:#fff}
 #chat-input{flex:1;padding:10px 13px;border:1px solid #e5e7eb;border-radius:8px;font-size:13.5px;font-family:'Inter',sans-serif;color:#111827;outline:none;transition:border-color .2s}
 #chat-input:focus{border-color:#1d4ed8}
@@ -175,8 +195,6 @@ body{font-family:'Inter',sans-serif;background:#f4f6f9;display:flex;align-items:
 #btn-send{padding:10px 16px;background:#1d4ed8;border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;transition:background .2s;white-space:nowrap}
 #btn-send:hover{background:#1e40af}
 #btn-send:disabled{background:#9ca3af;cursor:not-allowed}
-
-/* TICKET */
 #s-ticket{padding:22px 20px;gap:14px;overflow-y:auto}
 .tick-header{display:flex;align-items:center;gap:12px}
 .tick-icon{width:42px;height:42px;border-radius:11px;background:#dcfce7;display:flex;align-items:center;justify-content:center;flex-shrink:0}
@@ -203,7 +221,6 @@ body{font-family:'Inter',sans-serif;background:#f4f6f9;display:flex;align-items:
 </head>
 <body>
 <div id="app">
-
   <div class="kd-head">
     <div style="display:flex;align-items:center">
       <div class="kd-logo">
@@ -216,7 +233,6 @@ body{font-family:'Inter',sans-serif;background:#f4f6f9;display:flex;align-items:
     </div>
     <div class="kd-online"><div class="kd-dot"></div>online</div>
   </div>
-
   <div class="kd-steps">
     <div class="kd-step active" id="step-1">
       <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -231,7 +247,6 @@ body{font-family:'Inter',sans-serif;background:#f4f6f9;display:flex;align-items:
       Chamado
     </div>
   </div>
-
   <div class="screen on" id="s-welcome">
     <div class="welcome-icon">
       <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
@@ -253,7 +268,6 @@ body{font-family:'Inter',sans-serif;background:#f4f6f9;display:flex;align-items:
       </button>
     </div>
   </div>
-
   <div class="screen" id="s-chat">
     <div class="userbar">
       <div class="avatar" id="kd-initials">—</div>
@@ -268,7 +282,6 @@ body{font-family:'Inter',sans-serif;background:#f4f6f9;display:flex;align-items:
       <button id="btn-send" onclick="kdSend()">Enviar</button>
     </div>
   </div>
-
   <div class="screen" id="s-ticket">
     <div class="tick-header">
       <div class="tick-icon">
@@ -298,11 +311,11 @@ body{font-family:'Inter',sans-serif;background:#f4f6f9;display:flex;align-items:
       Abrir novo chamado
     </button>
   </div>
-
 </div>
 <script>
-const N8N = "https://eduardol.app.n8n.cloud/webhook/chat";
-let uName="",uEmail="",desc="",ans={},state="INIT",curQ="";
+// Chama a Vercel como proxy — sem CORS
+const API = "/api/chat";
+let uName="",uEmail="",desc="",ans={},state="DESC",curQ="";
 
 function kdScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));document.getElementById(id).classList.add('on')}
 function kdStep(n){[1,2,3].forEach(i=>{const e=document.getElementById('step-'+i);e.classList.remove('active','done');if(i<n)e.classList.add('done');else if(i===n)e.classList.add('active')})}
@@ -333,96 +346,82 @@ function kdStart(){
   document.getElementById('kd-uname').textContent=n;
   document.getElementById('kd-uemail').textContent=e;
   kdStep(2);kdScreen('s-chat');state="DESC";
-  kdMsg('bot',`Olá, ${n}! Descreva seu problema ou incidente de TI com o máximo de detalhes.`);
+  kdMsg('bot','Ola, '+n+'! Descreva seu problema ou incidente de TI com o maximo de detalhes.');
   document.getElementById('chat-input').focus();
 }
 
-async function kdSend(force = false){
+async function kdSend(force){
   const inp=document.getElementById('chat-input');
   const btn=document.getElementById('btn-send');
-  let text = inp.value.trim();
+  let text=inp.value.trim();
 
-  // Se o botão de fuga for clicado, enviamos uma mensagem automática no balão do usuário
-  if(force) {
-     text = "Prefiro finalizar agora e falar com um atendente humano.";
-     kdMsg('usr', text);
+  if(force){
+    text="Prefiro finalizar agora e falar com um atendente humano.";
+    kdMsg('usr',text);
   } else {
-     if(!text) return;
-     kdMsg('usr', text); 
-     inp.value=''; 
-     btn.disabled=true;
-     
-     if(state==="DESC") desc=text;
-     else if(state==="COLLECT" && curQ) ans[curQ]=text;
+    if(!text)return;
+    kdMsg('usr',text);
+    inp.value='';
+    btn.disabled=true;
+    if(state==="DESC")desc=text;
+    else if(state==="COLLECT"&&curQ)ans[curQ]=text;
   }
 
   kdTyping();
   try{
-    const r=await fetch(N8N,{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({
-            description:desc, 
-            answers:ans, 
-            requester_name:uName, 
-            requester_email:uEmail, 
-            force_escalation: force // Manda a flag pro Python forçar o registro
-        })
+    const r=await fetch(API,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({description:desc,answers:ans,requester_name:uName,requester_email:uEmail,force_escalation:!!force})
     });
-    const d=await r.json(); kdRmTyping();
-    
-    if(d.status==="need_more_info" || d.status==="missing_required"){
+    const d=await r.json();
+    kdRmTyping();
+
+    if(d.status==="need_more_info"||d.status==="missing_required"){
       state="COLLECT";
-      const arr = d.questions || d.required_fields || [];
-      curQ = arr.find(q => !ans[q]) || arr[0];
-      
-      let botText = d.ai_message || `Preciso de mais informações:\n\n→ ${curQ}`;
-      
-      // Se a IA já fez pelo menos 1 pergunta antes, ela oferece a saída
-      if(Object.keys(ans).length >= 1 && !document.getElementById('btn-force')) {
-         botText += "\n\nSe preferir, posso parar de perguntar e enviar este chamado direto para um analista humano. O que acha?";
-         kdMsg('bot', botText);
-         
-         // Injeta o botão de escalonamento abaixo da mensagem
-         const box=document.getElementById('chat-box');
-         const dEsc = document.createElement('div');
-         dEsc.innerHTML = `<button id="btn-force" onclick="this.remove(); kdSend(true)" style="margin-top:5px; padding:10px 14px; background:#ef4444; color:white; border:none; border-radius:8px; cursor:pointer; font-size:13px; font-weight:600; font-family:'Inter',sans-serif; transition: background 0.2s;">Finalizar e chamar humano</button>`;
-         dEsc.style.textAlign = 'left'; dEsc.style.marginLeft = '10px'; dEsc.style.marginBottom = '10px';
-         box.appendChild(dEsc);
-         box.scrollTop=box.scrollHeight;
-      } else {
-         kdMsg('bot', botText);
+      const arr=d.questions||d.required_fields||[];
+      curQ=arr.find(q=>!ans[q])||arr[0];
+      const botText=d.ai_message||d.message||('Preciso de mais informacoes:\n\n-> '+curQ);
+      kdMsg('bot',botText);
+
+      if(Object.keys(ans).length>=1&&!document.getElementById('btn-force')){
+        const box=document.getElementById('chat-box');
+        const dEsc=document.createElement('div');
+        dEsc.innerHTML='<button id="btn-force" onclick="this.remove();kdSend(true)" style="margin-top:5px;padding:10px 14px;background:#ef4444;color:white;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;font-family:Inter,sans-serif">Finalizar e chamar humano</button>';
+        dEsc.style.cssText='text-align:left;margin-left:10px;margin-bottom:10px';
+        box.appendChild(dEsc);
+        box.scrollTop=box.scrollHeight;
       }
 
     }else if(d.status==="registered"){
-      kdStep(3); kdShowTicket(d);
+      kdStep(3);
+      document.getElementById('kt-id').textContent='Ticket: '+d.ticket_id;
+      document.getElementById('kt-svc').textContent=d.service||'—';
+      document.getElementById('kt-cat').textContent=d.category||'—';
+      document.getElementById('kt-eta').textContent=d.estimated_resolution_time||'—';
+      document.getElementById('kt-art').textContent=(d.kb_article_id||'')+'  '+(d.kb_article_title||'');
+      document.getElementById('kt-steps').textContent=d.resolution_steps||'—';
+      const p=(d.priority||'media').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+      const bm={critica:'badge-c',alta:'badge-a',media:'badge-m',baixa:'badge-b'};
+      document.getElementById('kt-pri').innerHTML='<span class="badge '+(bm[p]||'badge-m')+'">'+d.priority+'</span>';
+      if(d.workaround){document.getElementById('kt-wk').textContent=d.workaround;document.getElementById('kt-wblock').style.display='flex'}
+      if(d.escalation_required)document.getElementById('kt-esc').style.display='flex';
+      kdScreen('s-ticket');
     }else{
-      kdMsg('bot', d.ai_message || 'Resposta inesperada. Tente novamente.');
+      kdMsg('bot',d.ai_message||d.message||JSON.stringify(d));
     }
-    
-  }catch(e){kdRmTyping(); kdMsg('bot','Erro de conexão. Verifique sua rede e tente novamente.')}
-  
-  if(!force) { btn.disabled=false; inp.focus(); }
-}
-
-function kdShowTicket(d){
-  document.getElementById('kt-id').textContent='Ticket: '+d.ticket_id;
-  document.getElementById('kt-svc').textContent=d.service||'—';
-  document.getElementById('kt-cat').textContent=d.category||'—';
-  document.getElementById('kt-eta').textContent=d.estimated_resolution_time||'—';
-  document.getElementById('kt-art').textContent=(d.kb_article_id||'')+' · '+(d.kb_article_title||'');
-  document.getElementById('kt-steps').textContent=d.resolution_steps||'—';
-  const p=(d.priority||'Média').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-  const bm={critica:'badge-c',alta:'badge-a',media:'badge-m',baixa:'badge-b'};
-  document.getElementById('kt-pri').innerHTML=`<span class="badge ${bm[p]||'badge-m'}">${d.priority}</span>`;
-  if(d.workaround){document.getElementById('kt-wk').textContent=d.workaround;document.getElementById('kt-wblock').style.display='flex'}
-  if(d.escalation_required)document.getElementById('kt-esc').style.display='flex';
-  kdScreen('s-ticket');
+  }catch(e){
+    kdRmTyping();
+    kdMsg('bot','Erro de conexao. Tente novamente.');
+    console.error(e);
+  }
+  if(!force){btn.disabled=false;inp.focus()}
 }
 
 function kdReset(){
-  uName='';uEmail='';desc='';ans={};state='INIT';curQ='';
-  document.getElementById('inp-name').value='';document.getElementById('inp-email').value='';
+  uName='';uEmail='';desc='';ans={};state='DESC';curQ='';
+  document.getElementById('inp-name').value='';
+  document.getElementById('inp-email').value='';
   document.getElementById('chat-box').innerHTML='';
   document.getElementById('kt-wblock').style.display='none';
   document.getElementById('kt-esc').style.display='none';
@@ -430,7 +429,6 @@ function kdReset(){
   document.getElementById('btn-send').disabled=false;
   kdStep(1);kdScreen('s-welcome');
 }
-
 document.addEventListener('keydown',function(e){
   if(e.key==='Enter'&&document.getElementById('s-welcome').classList.contains('on'))kdStart();
 });
@@ -438,6 +436,7 @@ document.addEventListener('keydown',function(e){
 </body>
 </html>"""
     return html, 200
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000)
