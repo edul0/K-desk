@@ -46,7 +46,7 @@ def split_questions(raw: str) -> List[str]:
         return []
     parts = re.split(r'\?\s*', raw)
     questions = [p.strip() + "?" for p in parts if p.strip()]
-    return questions[:3]
+    return questions[:3]  # máximo 3 perguntas
 
 
 def load_kb(path: Path) -> List[KBArticle]:
@@ -66,7 +66,7 @@ def load_kb(path: Path) -> List[KBArticle]:
                 escalation_criteria=row.get("escalation_criteria", ""),
                 priority_guidance=row.get("priority_guidance", ""),
                 estimated_resolution_time=row.get("estimated_resolution_time", ""),
-                agent_response_guidance=row.get("agent_response_guidance", row.get("message", "")),
+                agent_response_guidance=row.get("agent_response_guidance", ""),
                 keywords=split_csv_list(row.get("keywords", "")),
                 examples=row.get("user_description_examples", ""),
             )
@@ -128,11 +128,9 @@ def triage(description: str, answers: Dict[str, str], articles: List[KBArticle])
     )
     best, best_score = ranked[0]
     second_score = ranked[1][1] if len(ranked) > 1 else 0.0
-    
-    # Threshold mais alto para forçar perguntas
-    ambiguous = best_score < 4.0 or (best_score - second_score) < 1.5
+    ambiguous = best_score < 2.0 or (best_score - second_score) < 1.2
 
-    questions = best.diagnostic_questions
+    questions = best.diagnostic_questions  # já é lista agora
 
     # Se ambíguo e há perguntas não respondidas ainda
     if ambiguous and len(answers) < len(questions):
