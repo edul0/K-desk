@@ -47,14 +47,25 @@ O fluxo no Make terá a seguinte estrutura principal:
 ### Passo 2.5 - Braço A: Ambiguidade (Falta de Dados)
 1. Clique no filtro da linha superior do roteador e coloque a condição: `status` da IA **Equal to** `need_more_info`.
 2. Adicione o módulo **Webhooks** > **Webhook Response**.
-3. No Body, coloque a variável exata retornada pela IA contendo as perguntas. (O front-end Vercel saberá desenhar isso na tela do chat).
+3. Na janela do Webhook Response preencha:
+   - **Status**: `200` (Este é o código HTTP de sucesso)
+   - **Body**: Coloque o JSON ou a variável retornada pela IA contendo as perguntas. (Exemplo abaixo)
+   ```json
+   {
+     "status": "need_more_info",
+     "message": "Preciso de mais detalhes...",
+     "questions": ["Qual é o sistema operacional?", "Apresenta código de erro?"]
+   }
+   ```
 
 ### Passo 2.6 - Braço B: Registro de Ticket Claro
 1. Clique no filtro da linha inferior e coloque: `status` da IA **Equal to** `registered`.
 2. Adicione o módulo **Google Sheets** > **Add a Row**.
 3. Conecte à sua planilha "Registro de Chamados". Mapeie os dados da IA (Nome, Email, Descrição, Serviço, Categoria, Prioridade, Prazo) para as colunas corretas.
 4. Adicione um último módulo **Webhooks** > **Webhook Response**.
-5. Construa o JSON de sucesso no Body, para a interface Vercel mostrar o "Card" verde de Chamado Criado.
+5. Na janela do Webhook Response preencha:
+   - **Status**: `200` (Este é o código HTTP de sucesso)
+   - **Body**: Construa o JSON de sucesso no Body, para a interface Vercel mostrar o "Card" verde de Chamado Criado.
    ```json
    {
      "status": "registered",

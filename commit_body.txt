@@ -1,0 +1,3 @@
+Updates the Make.com low code guide with explicit instructions to specify the HTTP status 200 in the Webhook Response module.
+
+This directly addresses the screenshot provided where the Status field in the Make.com module was left blank, causing a required field error in Make.com and likely a 5xx response back to Vercel.
