@@ -403,17 +403,30 @@ body{font-family:'Inter',sans-serif;background:#f4f6f9;display:flex;align-items:
 .btn-new{width:100%;padding:10px;background:#fff;border:1px solid #e5e7eb;border-radius:9px;color:#6b7280;font-size:13px;font-family:'Inter',sans-serif;cursor:pointer;transition:border-color .2s,color .2s;margin-top:2px;display:flex;align-items:center;justify-content:center;gap:6px}
 .btn-new:hover{border-color:#1d4ed8;color:#1d4ed8}
 .btn-new svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
-.kd-menu{display:flex;gap:6px;padding:8px 10px;border-bottom:1px solid #f0f2f5;background:#fff}
-.kd-tab{flex:1;padding:8px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;color:#374151;font-size:12px;cursor:pointer}
-.kd-tab.on{background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe}
-.kd-csv{padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;color:#111827;font-size:12px;cursor:pointer}
-.kd-history{display:none;max-height:180px;overflow-y:auto;padding:10px;background:#fafafa;border-bottom:1px solid #f0f2f5}
-.kd-history.on{display:block}
-.hist-card{padding:9px;border:1px solid #e5e7eb;background:#fff;border-radius:8px;margin-bottom:8px}
-.hist-top{display:flex;justify-content:space-between;font-size:11px;color:#6b7280;margin-bottom:4px}
-.hist-desc{font-size:12px;color:#111827;line-height:1.4;margin-bottom:5px}
-.hist-actions{display:flex;gap:6px}
-.hist-btn{padding:4px 8px;border:1px solid #e5e7eb;border-radius:7px;background:#fff;font-size:11px;cursor:pointer}
+.kd-menu{display:flex;gap:8px;padding:12px 16px;border-bottom:1px solid #f0f2f5;background:#fff;align-items:center;justify-content:space-between;overflow-x:auto}
+.kd-tabs-group{display:flex;gap:6px;}
+.kd-tab{padding:7px 12px;border:none;border-radius:6px;background:transparent;color:#4b5563;font-size:12.5px;font-weight:500;cursor:pointer;transition:all .2s;}
+.kd-tab:hover{background:#f3f4f6;color:#111827}
+.kd-tab.on{background:#ebf5ff;color:#1d4ed8;}
+.kd-admin-group{display:flex;gap:6px;margin-left:auto}
+.kd-btn-action{padding:7px 12px;border:1px solid #e5e7eb;border-radius:6px;background:#fff;color:#374151;font-size:12px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:5px;transition:all .2s;box-shadow:0 1px 2px rgba(0,0,0,0.05)}
+.kd-btn-action:hover{border-color:#d1d5db;background:#f9fafb}
+.kd-btn-new{background:#1d4ed8;color:#fff;border-color:#1d4ed8;box-shadow:0 1px 3px rgba(29,78,216,0.3)}
+.kd-btn-new:hover{background:#1e40af;border-color:#1e40af;color:#fff}
+.kd-history{display:none;max-height:240px;overflow-y:auto;padding:16px;background:#f8fafc;border-bottom:1px solid #f0f2f5}
+.kd-history.on{display:flex;flex-direction:column;gap:10px}
+.hist-card{padding:14px;border:1px solid #e2e8f0;background:#fff;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,0.03);transition:transform .15s}
+.hist-card:hover{transform:translateY(-1px);box-shadow:0 4px 6px -1px rgba(0,0,0,0.05)}
+.hist-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.hist-id{font-family:'JetBrains Mono',monospace;font-size:11.5px;font-weight:600;color:#1d4ed8}
+.hist-status{font-size:10px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;padding:3px 7px;border-radius:4px;background:#f1f5f9;color:#475569}
+.hist-desc{font-size:13px;color:#334155;line-height:1.5;margin-bottom:10px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.hist-meta{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:#64748b}
+.hist-actions{display:flex;gap:8px;margin-top:10px;padding-top:10px;border-top:1px dashed #e2e8f0}
+.hist-btn{padding:5px 10px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;color:#475569;font-size:11.5px;font-weight:500;cursor:pointer;transition:all .15s}
+.hist-btn:hover{background:#f8fafc;color:#0f172a;border-color:#94a3b8}
+.hist-btn-primary{background:#ecfdf5;color:#059669;border-color:#a7f3d0}
+.hist-btn-primary:hover{background:#d1fae5;color:#047857}
 </style>
 </head>
 <body>
@@ -445,10 +458,21 @@ body{font-family:'Inter',sans-serif;background:#f4f6f9;display:flex;align-items:
     </div>
   </div>
   <div class="kd-menu">
-    <button class="kd-tab on" id="tab-historico" onclick="kdLoadTickets('')">Histórico</button>
-    <button class="kd-tab" id="tab-andamento" onclick="kdLoadTickets('Em andamento')">Em andamento</button>
-    <button class="kd-tab" id="tab-finalizado" onclick="kdLoadTickets('Finalizado')">Finalizados</button>
-    <button class="kd-csv" onclick="window.location='/api/tickets/export.csv'">CSV</button>
+    <div class="kd-tabs-group">
+      <button class="kd-tab on" id="tab-historico" onclick="kdLoadTickets('')">Histórico</button>
+      <button class="kd-tab" id="tab-andamento" onclick="kdLoadTickets('Em andamento')">Em andamento</button>
+      <button class="kd-tab" id="tab-finalizado" onclick="kdLoadTickets('Finalizado')">Finalizados</button>
+    </div>
+    <div class="kd-admin-group">
+      <button class="kd-btn-action" onclick="window.location='/api/tickets/export.csv'">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+        CSV
+      </button>
+      <button class="kd-btn-action kd-btn-new" onclick="kdReset(); kdScreen('s-welcome')">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+        Novo
+      </button>
+    </div>
   </div>
   <div class="kd-history on" id="kd-history"></div>
   <div class="screen on" id="s-welcome">
@@ -555,13 +579,20 @@ async function kdLoadTickets(status){
     const tickets=data.tickets||[];
     if(!tickets.length){box.innerHTML='Nenhum chamado nesta visão.';return;}
     box.innerHTML=tickets.map(t=>{
-      const openBtn=t.status==='Aberto'?`<button class="hist-btn" onclick="kdUpdateTicketStatus('${t.ticket_id}','Em andamento')">Iniciar</button>`:'';
-      const doneBtn=t.status!=='Finalizado'?`<button class="hist-btn" onclick="kdUpdateTicketStatus('${t.ticket_id}','Finalizado')">Finalizar</button>`:'';
+      const openBtn=t.status==='Aberto'?`<button class="hist-btn hist-btn-primary" onclick="kdUpdateTicketStatus('${t.ticket_id}','Em andamento')">Assumir</button>`:'';
+      const doneBtn=t.status!=='Finalizado'?`<button class="hist-btn" onclick="kdUpdateTicketStatus('${t.ticket_id}','Finalizado')">Concluir</button>`:'';
+      const actionsHtml = (openBtn || doneBtn) ? `<div class="hist-actions">${openBtn}${doneBtn}</div>` : '';
       return `<div class="hist-card">
-        <div class="hist-top"><span>${t.ticket_id}</span><span>${t.status||'Aberto'}</span></div>
-        <div class="hist-desc">${(t.description||'').slice(0,140)}</div>
-        <div class="hist-top"><span>${t.priority||''}</span><span>${(t.created_at||'').replace('T',' ').slice(0,16)}</span></div>
-        <div class="hist-actions">${openBtn}${doneBtn}</div>
+        <div class="hist-top">
+          <span class="hist-id">${t.ticket_id}</span>
+          <span class="hist-status">${t.status||'Aberto'}</span>
+        </div>
+        <div class="hist-desc">${(t.description||'').slice(0,160)}...</div>
+        <div class="hist-meta">
+          <span><strong>Pri:</strong> ${t.priority||'-'}</span>
+          <span>${(t.created_at||'').replace('T',' ').slice(0,16)}</span>
+        </div>
+        ${actionsHtml}
       </div>`;
     }).join('');
   }catch(e){
