@@ -403,16 +403,16 @@ body{font-family:'Inter',sans-serif;background:#f4f6f9;display:flex;align-items:
 .btn-new{width:100%;padding:10px;background:#fff;border:1px solid #e5e7eb;border-radius:9px;color:#6b7280;font-size:13px;font-family:'Inter',sans-serif;cursor:pointer;transition:border-color .2s,color .2s;margin-top:2px;display:flex;align-items:center;justify-content:center;gap:6px}
 .btn-new:hover{border-color:#1d4ed8;color:#1d4ed8}
 .btn-new svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
-.kd-menu{display:flex;gap:8px;padding:12px 16px;border-bottom:1px solid #f0f2f5;background:#fff;align-items:center;justify-content:space-between;overflow-x:auto}
-.kd-tabs-group{display:flex;gap:6px;}
-.kd-tab{padding:7px 12px;border:none;border-radius:6px;background:transparent;color:#4b5563;font-size:12.5px;font-weight:500;cursor:pointer;transition:all .2s;}
+.kd-menu{display:flex;gap:12px;padding:12px 16px;border-bottom:1px solid #f0f2f5;background:#fff;align-items:center;justify-content:center;}
+.kd-tabs-group{display:flex;gap:4px;}
+.kd-tab{padding:8px 14px;border:none;border-radius:6px;background:transparent;color:#4b5563;font-size:13px;font-weight:400;cursor:pointer;transition:all .2s;white-space:nowrap;line-height:1.2;}
 .kd-tab:hover{background:#f3f4f6;color:#111827}
-.kd-tab.on{background:#ebf5ff;color:#1d4ed8;}
-.kd-admin-group{display:flex;gap:6px;margin-left:auto}
-.kd-btn-action{padding:7px 12px;border:1px solid #e5e7eb;border-radius:6px;background:#fff;color:#374151;font-size:12px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:5px;transition:all .2s;box-shadow:0 1px 2px rgba(0,0,0,0.05)}
-.kd-btn-action:hover{border-color:#d1d5db;background:#f9fafb}
-.kd-btn-new{background:#1d4ed8;color:#fff;border-color:#1d4ed8;box-shadow:0 1px 3px rgba(29,78,216,0.3)}
-.kd-btn-new:hover{background:#1e40af;border-color:#1e40af;color:#fff}
+.kd-tab.on{background:#e8f0fe;color:#1a73e8;}
+.kd-admin-group{display:flex;gap:8px;}
+.kd-btn-action{padding:8px 12px;border:1px solid #d2d5d6;border-radius:6px;background:#fff;color:#3c4043;font-size:13px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all .2s;}
+.kd-btn-action:hover{background:#f8f9fa}
+.kd-btn-new{background:#2563eb;color:#fff;border:none;}
+.kd-btn-new:hover{background:#1d4ed8;color:#fff}
 .kd-history{display:none;max-height:240px;overflow-y:auto;padding:16px;background:#f8fafc;border-bottom:1px solid #f0f2f5}
 .kd-history.on{display:flex;flex-direction:column;gap:10px}
 .hist-card{padding:14px;border:1px solid #e2e8f0;background:#fff;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,0.03);transition:transform .15s}
@@ -460,16 +460,16 @@ body{font-family:'Inter',sans-serif;background:#f4f6f9;display:flex;align-items:
   <div class="kd-menu">
     <div class="kd-tabs-group">
       <button class="kd-tab on" id="tab-historico" onclick="kdLoadTickets('')">Histórico</button>
-      <button class="kd-tab" id="tab-andamento" onclick="kdLoadTickets('Em andamento')">Em andamento</button>
+      <button class="kd-tab" id="tab-andamento" onclick="kdLoadTickets('Em andamento')">Em<br>andamento</button>
       <button class="kd-tab" id="tab-finalizado" onclick="kdLoadTickets('Finalizado')">Finalizados</button>
     </div>
     <div class="kd-admin-group">
       <button class="kd-btn-action" onclick="window.location='/api/tickets/export.csv'">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
         CSV
       </button>
       <button class="kd-btn-action kd-btn-new" onclick="kdReset(); kdScreen('s-welcome')">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
         Novo
       </button>
     </div>
