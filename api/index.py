@@ -1,22 +1,18 @@
 import json
 import os
 import uuid
-import urllib.request
 from pathlib import Path
 
 from flask import Flask, jsonify, request
 
 from agent_core import load_kb, triage
+from vercel_sql_store import append_ticket, init_db
 
 app = Flask(__name__)
 
-KB_FILE = Path(__file__).parent.parent / "data" / "support_knowledge_base.csv"
+DEFAULT_KB_FILE = Path(__file__).parent.parent / "data" / "support_knowledge_base.csv"
+KB_FILE = Path(os.environ.get("KB_CSV_PATH", str(DEFAULT_KB_FILE)))
 ARTICLES = load_kb(KB_FILE)
-
-N8N_WEBHOOK_URL = os.environ.get(
-    "N8N_WEBHOOK_URL",
-    "https://eduardol.app.n8n.cloud/webhook/chat"
-)
 
 
 @app.route("/", methods=["GET"])
@@ -61,7 +57,6 @@ def triage_route():
     escalation = payload.get("escalation", False)
 
     try:
-        from google_sheets_store import append_ticket
         ticket_id = append_ticket(
             requester_name=requester_name,
             requester_email=requester_email,
@@ -77,7 +72,7 @@ def triage_route():
         )
     except Exception as e:
         ticket_id = f"TKT-{uuid.uuid4().hex[:8].upper()}"
-        app.logger.warning(f"Google Sheets indisponível: {e}. Ticket: {ticket_id}")
+        app.logger.warning(f"Vercel SQL indisponível: {e}. Ticket fallback: {ticket_id}")
 
     return jsonify({
         "status": "registered",
@@ -97,30 +92,77 @@ def triage_route():
 
 @app.route("/api/chat", methods=["POST"])
 def chat_proxy():
-    """Proxy para o n8n — evita CORS no navegador."""
+    """Compatibilidade do chat sem n8n: usa triagem local + SQL."""
     data = request.get_json(silent=True) or {}
+    requester_name = (data.get("requester_name") or "Usuário não identificado").strip()
+    requester_email = (data.get("requester_email") or "não informado").strip()
+    description = (data.get("description") or "").strip()
+    answers = data.get("answers") or {}
+    force_escalation = data.get("force_escalation", False)
+
+    if not description:
+        return jsonify({"error": "Campo 'description' é obrigatório"}), 400
+
+    status, payload = triage(description, answers, ARTICLES)
+    if force_escalation:
+        status = "ready"
+        payload["escalation"] = True
+        if "priority" not in payload:
+            payload["priority"] = "Alta"
+
+    if status in {"need_more_info", "missing_required"}:
+        msg = payload.get("message") or "Preciso de mais detalhes para continuar o atendimento."
+        return jsonify({"status": status, "ai_message": msg, **payload}), 200
+
+    article = payload["article"]
+    priority = payload["priority"]
+    eta = payload.get("eta", "N/A")
+    escalation = payload.get("escalation", False)
+
     try:
-        body = json.dumps(data).encode("utf-8")
-        req = urllib.request.Request(
-            N8N_WEBHOOK_URL,
-            data=body,
-            headers={"Content-Type": "application/json"},
-            method="POST"
+        ticket_id = append_ticket(
+            requester_name=requester_name,
+            requester_email=requester_email,
+            description=description,
+            kb_article_id=article.article_id,
+            service=article.service,
+            category=article.category,
+            priority=priority,
+            estimated_resolution_time=eta,
+            escalation_required=escalation,
+            escalation_reason=article.escalation_criteria if escalation else "",
+            collected_fields=answers,
         )
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            raw = resp.read().decode("utf-8")
-            try:
-                return jsonify(json.loads(raw)), 200
-            except Exception:
-                return jsonify({"ai_message": raw, "status": "need_more_info"}), 200
     except Exception as e:
-        app.logger.error(f"Proxy n8n error: {e}")
-        return jsonify({"error": str(e)}), 500
+        ticket_id = f"TKT-{uuid.uuid4().hex[:8].upper()}"
+        app.logger.warning(f"Vercel SQL indisponível: {e}. Ticket fallback: {ticket_id}")
 
-
+    return jsonify({
+        "status": "registered",
+        "ticket_id": ticket_id,
+        "kb_article_id": article.article_id,
+        "kb_article_title": article.title,
+        "service": article.service,
+        "category": article.category,
+        "priority": priority,
+        "estimated_resolution_time": eta,
+        "escalation_required": escalation,
+        "escalation_criteria": article.escalation_criteria if escalation else "",
+        "resolution_steps": article.resolution_steps,
+        "workaround": article.workaround,
+    }), 200
 @app.route("/api/health", methods=["GET"])
 def health():
     return jsonify({"ok": True, "kb_articles": len(ARTICLES)}), 200
+
+
+@app.route("/api/init-db", methods=["POST"])
+def init_db_route():
+    try:
+        init_db()
+        return jsonify({"ok": True, "message": "Tabela tickets validada/criada com sucesso."}), 200
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 @app.route("/chat", methods=["GET"])
