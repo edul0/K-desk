@@ -218,12 +218,16 @@ def tickets_route():
     status = (request.args.get("status") or "").strip()
     if status and status not in {"Aberto", "Em andamento", "Finalizado"}:
         return jsonify({"error": "Status inválido."}), 400
-    rows = list_tickets(status=status or None, limit=300)
-    for row in rows:
-        dt = row.get("created_at")
-        if dt is not None:
-            row["created_at"] = dt.isoformat()
-    return jsonify({"tickets": rows}), 200
+    try:
+        rows = list_tickets(status=status or None, limit=300)
+        for row in rows:
+            dt = row.get("created_at")
+            if dt is not None:
+                row["created_at"] = dt.isoformat()
+        return jsonify({"tickets": rows}), 200
+    except Exception as e:
+        app.logger.error(f"tickets_route error: {e}")
+        return jsonify({"tickets": [], "error": "Falha ao carregar histórico."}), 200
 
 
 @app.route("/api/tickets/<ticket_id>/status", methods=["POST"])
@@ -540,6 +544,11 @@ async function kdLoadTickets(status){
   try{
     const q=currentTicketFilter?('?status='+encodeURIComponent(currentTicketFilter)):'';
     const res=await fetch('/api/tickets'+q);
+    if(!res.ok){
+      const txt=await res.text();
+      box.innerHTML='Falha ao carregar histórico. '+txt.slice(0,120);
+      return;
+    }
     const data=await res.json();
     const tickets=data.tickets||[];
     if(!tickets.length){box.innerHTML='Nenhum chamado nesta visão.';return;}

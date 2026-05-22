@@ -111,6 +111,7 @@ def list_tickets(status: str | None = None, limit: int = 200) -> list[dict]:
 
     with _conn() as conn:
         with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
+            cur.execute(CREATE_TABLE_SQL)
             cur.execute(query, params)
             return cur.fetchall()
 
@@ -118,6 +119,7 @@ def list_tickets(status: str | None = None, limit: int = 200) -> list[dict]:
 def update_ticket_status(ticket_id: str, status: str) -> bool:
     with _conn() as conn:
         with conn.cursor() as cur:
+            cur.execute(CREATE_TABLE_SQL)
             cur.execute(
                 """
                 UPDATE tickets
