@@ -75,22 +75,22 @@ def triage_route():
     requester_email = (data.get("requester_email") or "não informado").strip()
     description = (data.get("description") or "").strip()
     answers = data.get("answers") or {}
-    force_escalation = data.get("force_escalation", False)
 
     if not description:
         return jsonify({"error": "Campo 'description' é obrigatório"}), 400
 
     status, payload = triage(description, answers, ARTICLES)
 
-    if force_escalation:
-        status = "ready"
-        payload["escalation"] = True
-        if "priority" not in payload:
-            payload["priority"] = "Alta"
+    chat_context = data.get("chat_context") or []
+    context_text = " | ".join(str(x) for x in chat_context[-8:])
 
     if status in {"need_more_info", "missing_required"}:
         ai_hint = gemini_assist(
-            "Você é um analista de service desk. Faça uma pergunta curta e objetiva para qualificar o chamado: "
+            "Você é um atendente de TI experiente. Responda como humano, com empatia e objetividade. Faça uma pergunta curta para qualificar o chamado: "
+            + context_text
+            + " | Mensagem atual: "
+            + context_text
+            + " | Mensagem atual: "
             + description
         )
         result = {"status": status, **payload}
@@ -145,22 +145,18 @@ def chat_proxy():
     requester_email = (data.get("requester_email") or "não informado").strip()
     description = (data.get("description") or "").strip()
     answers = data.get("answers") or {}
-    force_escalation = data.get("force_escalation", False)
 
     if not description:
         return jsonify({"error": "Campo 'description' é obrigatório"}), 400
 
     status, payload = triage(description, answers, ARTICLES)
-    if force_escalation:
-        status = "ready"
-        payload["escalation"] = True
-        if "priority" not in payload:
-            payload["priority"] = "Alta"
+    chat_context = data.get("chat_context") or []
+    context_text = " | ".join(str(x) for x in chat_context[-8:])
 
     if status in {"need_more_info", "missing_required"}:
         msg = payload.get("message") or "Preciso de mais detalhes para continuar o atendimento."
         ai_hint = gemini_assist(
-            "Você é um analista de service desk. Faça uma pergunta curta e objetiva para qualificar o chamado: "
+            "Você é um atendente de TI experiente. Responda como humano, com empatia e objetividade. Faça uma pergunta curta para qualificar o chamado: "
             + description
         )
         if ai_hint:
@@ -206,7 +202,7 @@ def chat_proxy():
     }
     ai_follow_up = gemini_assist(
         f"Chamado {ticket_id} registrado com prioridade {priority}. "
-        f"Gere orientação curta em português para o usuário."
+        f"Responda como um atendente humano de TI em português, de forma curta e útil."
     )
     if ai_follow_up:
         response["ai_message"] = ai_follow_up
@@ -517,7 +513,7 @@ body{font-family:'Inter',sans-serif;background:#f4f6f9;display:flex;align-items:
 <script>
 // Chama a Vercel como proxy — sem CORS
 const API = "/api/chat";
-let uName="",uEmail="",desc="",ans={},state="DESC",curQ="";
+let uName="",uEmail="",desc="",ans={},state="DESC",curQ="",chatContext=[];
 let currentTicketFilter="";
 
 function kdSelectTab(status){
@@ -576,7 +572,10 @@ function kdMsg(type,text){
   const d=document.createElement('div');d.className='msg '+type;
   const b=document.createElement('div');b.className='bubble';b.textContent=text;
   const m=document.createElement('div');m.className='msg-time';m.textContent=kdTime();
-  d.appendChild(b);d.appendChild(m);box.appendChild(d);box.scrollTop=box.scrollHeight;return d;
+  d.appendChild(b);d.appendChild(m);box.appendChild(d);box.scrollTop=box.scrollHeight;
+  chatContext.push((type==='usr'?'Usuário: ':'Agente: ')+String(text||''));
+  if(chatContext.length>20)chatContext=chatContext.slice(-20);
+  return d;
 }
 function kdTyping(){
   const box=document.getElementById('chat-box');
@@ -600,29 +599,23 @@ function kdStart(){
   document.getElementById('chat-input').focus();
 }
 
-async function kdSend(force){
+async function kdSend(){
   const inp=document.getElementById('chat-input');
   const btn=document.getElementById('btn-send');
   let text=inp.value.trim();
-
-  if(force){
-    text="Prefiro finalizar agora e falar com um atendente humano.";
-    kdMsg('usr',text);
-  } else {
-    if(!text)return;
-    kdMsg('usr',text);
-    inp.value='';
-    btn.disabled=true;
-    if(state==="DESC")desc=text;
-    else if(state==="COLLECT"&&curQ)ans[curQ]=text;
-  }
+  if(!text)return;
+  kdMsg('usr',text);
+  inp.value='';
+  btn.disabled=true;
+  if(state==="DESC")desc=text;
+  else if(state==="COLLECT"&&curQ)ans[curQ]=text;
 
   kdTyping();
   try{
     const r=await fetch(API,{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({description:desc,answers:ans,requester_name:uName,requester_email:uEmail,force_escalation:!!force})
+      body:JSON.stringify({description:desc,answers:ans,requester_name:uName,requester_email:uEmail,chat_context:chatContext})
     });
     const d=await r.json();
     kdRmTyping();
@@ -633,15 +626,6 @@ async function kdSend(force){
       curQ=arr.find(q=>!ans[q])||arr[0];
       const botText=d.ai_message||d.message||('Preciso de mais informacoes:\n\n-> '+curQ);
       kdMsg('bot',botText);
-
-      if(Object.keys(ans).length>=1&&!document.getElementById('btn-force')){
-        const box=document.getElementById('chat-box');
-        const dEsc=document.createElement('div');
-        dEsc.innerHTML='<button id="btn-force" onclick="this.remove();kdSend(true)" style="margin-top:5px;padding:10px 14px;background:#ef4444;color:white;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;font-family:Inter,sans-serif">Finalizar e chamar humano</button>';
-        dEsc.style.cssText='text-align:left;margin-left:10px;margin-bottom:10px';
-        box.appendChild(dEsc);
-        box.scrollTop=box.scrollHeight;
-      }
 
 	    }else if(d.status==="registered"){
       kdStep(3);
@@ -666,7 +650,7 @@ async function kdSend(force){
     kdMsg('bot','Erro de conexao. Tente novamente.');
     console.error(e);
   }
-  if(!force){btn.disabled=false;inp.focus()}
+  btn.disabled=false;inp.focus()
 }
 
 function kdReset(){
