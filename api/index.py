@@ -140,8 +140,20 @@ def triage_route():
 
 @app.route("/api/chat", methods=["POST"])
 def chat_proxy():
-    """Compatibilidade do chat sem n8n: usa triagem local + SQL."""
+    """Compatibilidade do chat sem n8n: usa triagem local + SQL. Agora com suporte nativo ao Make"""
+    import requests
     data = request.get_json(silent=True) or {}
+
+    make_webhook = os.environ.get("MAKE_WEBHOOK_URL", "").strip()
+    if make_webhook:
+        try:
+            r = requests.post(make_webhook, json=data, timeout=15)
+            if r.status_code == 200:
+                return jsonify(r.json()), 200
+            else:
+                return jsonify({"error": "Erro no Make webhook", "details": r.text}), 502
+        except Exception as e:
+            return jsonify({"error": "Falha ao conectar no Make", "details": str(e)}), 500
     requester_name = (data.get("requester_name") or "Usuário não identificado").strip()
     requester_email = (data.get("requester_email") or "não informado").strip()
     description = (data.get("description") or "").strip()
