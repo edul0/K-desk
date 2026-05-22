@@ -85,13 +85,14 @@ def triage_route():
     context_text = " | ".join(str(x) for x in chat_context[-8:])
 
     if status in {"need_more_info", "missing_required"}:
+        pending_q = ""
+        if isinstance(payload.get("questions"), list) and payload.get("questions"):
+            pending_q = str(payload.get("questions")[0])
         ai_hint = gemini_assist(
             "Você é um atendente de TI experiente. Responda como humano, com empatia e objetividade. Faça uma pergunta curta para qualificar o chamado: "
-            + context_text
-            + " | Mensagem atual: "
-            + context_text
-            + " | Mensagem atual: "
-            + description
+            + " Contexto: " + context_text
+            + " | Mensagem atual: " + description
+            + " | Proxima pergunta obrigatoria: " + pending_q
         )
         result = {"status": status, **payload}
         if ai_hint:
@@ -155,9 +156,14 @@ def chat_proxy():
 
     if status in {"need_more_info", "missing_required"}:
         msg = payload.get("message") or "Preciso de mais detalhes para continuar o atendimento."
+        pending_q = ""
+        if isinstance(payload.get("questions"), list) and payload.get("questions"):
+            pending_q = str(payload.get("questions")[0])
         ai_hint = gemini_assist(
             "Você é um atendente de TI experiente. Responda como humano, com empatia e objetividade. Faça uma pergunta curta para qualificar o chamado: "
             + description
+            + " | Contexto: " + context_text
+            + " | Proxima pergunta obrigatoria: " + pending_q
         )
         if ai_hint:
             msg = ai_hint

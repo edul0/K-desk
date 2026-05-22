@@ -135,11 +135,16 @@ def triage(description: str, answers: Dict[str, str], articles: List[KBArticle])
     # Se ambíguo e há perguntas não respondidas ainda
     if ambiguous and len(answers) < len(questions):
         unanswered = [q for q in questions if q not in answers]
+        next_q = unanswered[0] if unanswered else "Qual sistema está afetado e qual erro aparece?"
+        msg = (
+            "Entendi. Para te ajudar melhor e registrar certo, preciso confirmar: "
+            f"{next_q}"
+        )
         return "need_more_info", {
             "kb_article_id": best.article_id,
             "kb_article_title": best.title,
             "questions": unanswered,
-            "message": best.agent_response_guidance or "Preciso de mais detalhes para classificar corretamente.",
+            "message": msg,
         }
 
     # Informações suficientes — registra
