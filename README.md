@@ -16,10 +16,17 @@ Agente inteligente de suporte de TI com triagem automática, classificação de 
 - `POST /api/triage`
 - `POST /api/chat` (compatível com a interface web)
 - `POST /api/init-db`
+- `GET /api/tickets?status=Aberto|Em andamento|Finalizado`
+- `POST /api/tickets/{ticket_id}/status`
+- `GET /api/tickets/export.csv`
 
 ## Variáveis de ambiente
 - `DATABASE_URL`
 - `KB_CSV_PATH` (opcional, default `data/support_knowledge_base.csv`)
+- `GEMINI_API_KEY` (opcional, para assistência de IA)
+- `GEMINI_MODEL` (opcional, default `gemini-1.5-flash`)
+
+> Segurança: não coloque chave de API direto no código. Configure em variável de ambiente no Vercel.
 
 ## Importar novo CSV da base
 

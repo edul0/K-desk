@@ -94,3 +94,38 @@ def append_ticket(
         conn.commit()
 
     return ticket_id
+
+
+def list_tickets(status: str | None = None, limit: int = 200) -> list[dict]:
+    query = """
+        SELECT ticket_id, created_at, requester_name, requester_email, description,
+               kb_article_id, service, category, priority, estimated_resolution_time,
+               escalation_required, escalation_reason, status
+        FROM tickets
+    """
+    params: dict = {"limit": int(limit)}
+    if status:
+        query += " WHERE status = %(status)s "
+        params["status"] = status
+    query += " ORDER BY created_at DESC LIMIT %(limit)s"
+
+    with _conn() as conn:
+        with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
+            cur.execute(query, params)
+            return cur.fetchall()
+
+
+def update_ticket_status(ticket_id: str, status: str) -> bool:
+    with _conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE tickets
+                SET status = %(status)s
+                WHERE ticket_id = %(ticket_id)s
+                """,
+                {"status": status, "ticket_id": ticket_id},
+            )
+            updated = cur.rowcount > 0
+        conn.commit()
+    return updated

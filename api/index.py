@@ -1,18 +1,58 @@
+import csv
+import io
 import json
 import os
+import urllib.parse
+import urllib.request
 import uuid
 from pathlib import Path
 
-from flask import Flask, jsonify, request
+from flask import Flask, Response, jsonify, request
 
 from agent_core import load_kb, triage
-from vercel_sql_store import append_ticket, init_db
+from vercel_sql_store import append_ticket, init_db, list_tickets, update_ticket_status
 
 app = Flask(__name__)
 
 DEFAULT_KB_FILE = Path(__file__).parent.parent / "data" / "support_knowledge_base.csv"
 KB_FILE = Path(os.environ.get("KB_CSV_PATH", str(DEFAULT_KB_FILE)))
 ARTICLES = load_kb(KB_FILE)
+
+
+def gemini_assist(prompt: str) -> str | None:
+    api_key = os.environ.get("GEMINI_API_KEY", "").strip()
+    if not api_key:
+        return None
+    try:
+        model = os.environ.get("GEMINI_MODEL", "gemini-1.5-flash")
+        endpoint = (
+            f"https://generativelanguage.googleapis.com/v1beta/models/"
+            f"{model}:generateContent?key={urllib.parse.quote(api_key)}"
+        )
+        payload = {
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [{"text": prompt}],
+                }
+            ]
+        }
+        req = urllib.request.Request(
+            endpoint,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        candidates = data.get("candidates") or []
+        if not candidates:
+            return None
+        parts = (candidates[0].get("content") or {}).get("parts") or []
+        text = "".join((p.get("text") or "") for p in parts).strip()
+        return text or None
+    except Exception:
+        return None
 
 
 @app.route("/", methods=["GET"])
@@ -49,7 +89,14 @@ def triage_route():
             payload["priority"] = "Alta"
 
     if status in {"need_more_info", "missing_required"}:
-        return jsonify({"status": status, **payload}), 200
+        ai_hint = gemini_assist(
+            "Você é um analista de service desk. Faça uma pergunta curta e objetiva para qualificar o chamado: "
+            + description
+        )
+        result = {"status": status, **payload}
+        if ai_hint:
+            result["ai_message"] = ai_hint
+        return jsonify(result), 200
 
     article = payload["article"]
     priority = payload["priority"]
@@ -112,6 +159,12 @@ def chat_proxy():
 
     if status in {"need_more_info", "missing_required"}:
         msg = payload.get("message") or "Preciso de mais detalhes para continuar o atendimento."
+        ai_hint = gemini_assist(
+            "Você é um analista de service desk. Faça uma pergunta curta e objetiva para qualificar o chamado: "
+            + description
+        )
+        if ai_hint:
+            msg = ai_hint
         return jsonify({"status": status, "ai_message": msg, **payload}), 200
 
     article = payload["article"]
@@ -137,7 +190,7 @@ def chat_proxy():
         ticket_id = f"TKT-{uuid.uuid4().hex[:8].upper()}"
         app.logger.warning(f"Vercel SQL indisponível: {e}. Ticket fallback: {ticket_id}")
 
-    return jsonify({
+    response = {
         "status": "registered",
         "ticket_id": ticket_id,
         "kb_article_id": article.article_id,
@@ -150,7 +203,92 @@ def chat_proxy():
         "escalation_criteria": article.escalation_criteria if escalation else "",
         "resolution_steps": article.resolution_steps,
         "workaround": article.workaround,
-    }), 200
+    }
+    ai_follow_up = gemini_assist(
+        f"Chamado {ticket_id} registrado com prioridade {priority}. "
+        f"Gere orientação curta em português para o usuário."
+    )
+    if ai_follow_up:
+        response["ai_message"] = ai_follow_up
+    return jsonify(response), 200
+
+
+@app.route("/api/tickets", methods=["GET"])
+def tickets_route():
+    status = (request.args.get("status") or "").strip()
+    if status and status not in {"Aberto", "Em andamento", "Finalizado"}:
+        return jsonify({"error": "Status inválido."}), 400
+    rows = list_tickets(status=status or None, limit=300)
+    for row in rows:
+        dt = row.get("created_at")
+        if dt is not None:
+            row["created_at"] = dt.isoformat()
+    return jsonify({"tickets": rows}), 200
+
+
+@app.route("/api/tickets/<ticket_id>/status", methods=["POST"])
+def ticket_status_route(ticket_id: str):
+    data = request.get_json(silent=True) or {}
+    status = (data.get("status") or "").strip()
+    if status not in {"Aberto", "Em andamento", "Finalizado"}:
+        return jsonify({"error": "Status inválido."}), 400
+    ok = update_ticket_status(ticket_id=ticket_id, status=status)
+    if not ok:
+        return jsonify({"error": "Ticket não encontrado."}), 404
+    return jsonify({"ok": True, "ticket_id": ticket_id, "status": status}), 200
+
+
+@app.route("/api/tickets/export.csv", methods=["GET"])
+def tickets_export_csv_route():
+    rows = list_tickets(limit=1000)
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(
+        [
+            "ticket_id",
+            "created_at",
+            "requester_name",
+            "requester_email",
+            "description",
+            "service",
+            "category",
+            "priority",
+            "estimated_resolution_time",
+            "status",
+            "escalation_required",
+            "escalation_reason",
+            "ai_note",
+        ]
+    )
+    for row in rows:
+        description = str(row.get("description") or "")
+        ai_note = gemini_assist(
+            "Resuma em uma linha o próximo passo para o chamado: " + description[:400]
+        ) or ""
+        writer.writerow(
+            [
+                row.get("ticket_id", ""),
+                (row.get("created_at").isoformat() if row.get("created_at") else ""),
+                row.get("requester_name", ""),
+                row.get("requester_email", ""),
+                description,
+                row.get("service", ""),
+                row.get("category", ""),
+                row.get("priority", ""),
+                row.get("estimated_resolution_time", ""),
+                row.get("status", ""),
+                row.get("escalation_required", ""),
+                row.get("escalation_reason", ""),
+                ai_note,
+            ]
+        )
+
+    csv_data = output.getvalue()
+    return Response(
+        csv_data,
+        mimetype="text/csv; charset=utf-8",
+        headers={"Content-Disposition": "attachment; filename=chamados_kdesk.csv"},
+    )
 @app.route("/api/health", methods=["GET"])
 def health():
     return jsonify({"ok": True, "kb_articles": len(ARTICLES)}), 200
@@ -259,6 +397,17 @@ body{font-family:'Inter',sans-serif;background:#f4f6f9;display:flex;align-items:
 .btn-new{width:100%;padding:10px;background:#fff;border:1px solid #e5e7eb;border-radius:9px;color:#6b7280;font-size:13px;font-family:'Inter',sans-serif;cursor:pointer;transition:border-color .2s,color .2s;margin-top:2px;display:flex;align-items:center;justify-content:center;gap:6px}
 .btn-new:hover{border-color:#1d4ed8;color:#1d4ed8}
 .btn-new svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+.kd-menu{display:flex;gap:6px;padding:8px 10px;border-bottom:1px solid #f0f2f5;background:#fff}
+.kd-tab{flex:1;padding:8px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;color:#374151;font-size:12px;cursor:pointer}
+.kd-tab.on{background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe}
+.kd-csv{padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;color:#111827;font-size:12px;cursor:pointer}
+.kd-history{display:none;max-height:180px;overflow-y:auto;padding:10px;background:#fafafa;border-bottom:1px solid #f0f2f5}
+.kd-history.on{display:block}
+.hist-card{padding:9px;border:1px solid #e5e7eb;background:#fff;border-radius:8px;margin-bottom:8px}
+.hist-top{display:flex;justify-content:space-between;font-size:11px;color:#6b7280;margin-bottom:4px}
+.hist-desc{font-size:12px;color:#111827;line-height:1.4;margin-bottom:5px}
+.hist-actions{display:flex;gap:6px}
+.hist-btn{padding:4px 8px;border:1px solid #e5e7eb;border-radius:7px;background:#fff;font-size:11px;cursor:pointer}
 </style>
 </head>
 <body>
@@ -289,6 +438,13 @@ body{font-family:'Inter',sans-serif;background:#f4f6f9;display:flex;align-items:
       Chamado
     </div>
   </div>
+  <div class="kd-menu">
+    <button class="kd-tab on" id="tab-historico" onclick="kdLoadTickets('')">Histórico</button>
+    <button class="kd-tab" id="tab-andamento" onclick="kdLoadTickets('Em andamento')">Em andamento</button>
+    <button class="kd-tab" id="tab-finalizado" onclick="kdLoadTickets('Finalizado')">Finalizados</button>
+    <button class="kd-csv" onclick="window.location='/api/tickets/export.csv'">CSV</button>
+  </div>
+  <div class="kd-history on" id="kd-history"></div>
   <div class="screen on" id="s-welcome">
     <div class="welcome-icon">
       <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
@@ -358,6 +514,49 @@ body{font-family:'Inter',sans-serif;background:#f4f6f9;display:flex;align-items:
 // Chama a Vercel como proxy — sem CORS
 const API = "/api/chat";
 let uName="",uEmail="",desc="",ans={},state="DESC",curQ="";
+let currentTicketFilter="";
+
+function kdSelectTab(status){
+  const tabs={"":"tab-historico","Em andamento":"tab-andamento","Finalizado":"tab-finalizado"};
+  document.querySelectorAll('.kd-tab').forEach(t=>t.classList.remove('on'));
+  const id=tabs[status]||"tab-historico";
+  const el=document.getElementById(id);if(el)el.classList.add('on');
+}
+
+async function kdUpdateTicketStatus(ticketId,status){
+  await fetch('/api/tickets/'+encodeURIComponent(ticketId)+'/status',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({status})
+  });
+  kdLoadTickets(currentTicketFilter);
+}
+
+async function kdLoadTickets(status){
+  currentTicketFilter=status||"";
+  kdSelectTab(currentTicketFilter);
+  const box=document.getElementById('kd-history');
+  box.innerHTML='Carregando chamados...';
+  try{
+    const q=currentTicketFilter?('?status='+encodeURIComponent(currentTicketFilter)):'';
+    const res=await fetch('/api/tickets'+q);
+    const data=await res.json();
+    const tickets=data.tickets||[];
+    if(!tickets.length){box.innerHTML='Nenhum chamado nesta visão.';return;}
+    box.innerHTML=tickets.map(t=>{
+      const openBtn=t.status==='Aberto'?`<button class="hist-btn" onclick="kdUpdateTicketStatus('${t.ticket_id}','Em andamento')">Iniciar</button>`:'';
+      const doneBtn=t.status!=='Finalizado'?`<button class="hist-btn" onclick="kdUpdateTicketStatus('${t.ticket_id}','Finalizado')">Finalizar</button>`:'';
+      return `<div class="hist-card">
+        <div class="hist-top"><span>${t.ticket_id}</span><span>${t.status||'Aberto'}</span></div>
+        <div class="hist-desc">${(t.description||'').slice(0,140)}</div>
+        <div class="hist-top"><span>${t.priority||''}</span><span>${(t.created_at||'').replace('T',' ').slice(0,16)}</span></div>
+        <div class="hist-actions">${openBtn}${doneBtn}</div>
+      </div>`;
+    }).join('');
+  }catch(e){
+    box.innerHTML='Falha ao carregar histórico.';
+  }
+}
 
 function kdScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));document.getElementById(id).classList.add('on')}
 function kdStep(n){[1,2,3].forEach(i=>{const e=document.getElementById('step-'+i);e.classList.remove('active','done');if(i<n)e.classList.add('done');else if(i===n)e.classList.add('active')})}
@@ -435,7 +634,7 @@ async function kdSend(force){
         box.scrollTop=box.scrollHeight;
       }
 
-    }else if(d.status==="registered"){
+	    }else if(d.status==="registered"){
       kdStep(3);
       document.getElementById('kt-id').textContent='Ticket: '+d.ticket_id;
       document.getElementById('kt-svc').textContent=d.service||'—';
@@ -447,8 +646,9 @@ async function kdSend(force){
       const bm={critica:'badge-c',alta:'badge-a',media:'badge-m',baixa:'badge-b'};
       document.getElementById('kt-pri').innerHTML='<span class="badge '+(bm[p]||'badge-m')+'">'+d.priority+'</span>';
       if(d.workaround){document.getElementById('kt-wk').textContent=d.workaround;document.getElementById('kt-wblock').style.display='flex'}
-      if(d.escalation_required)document.getElementById('kt-esc').style.display='flex';
-      kdScreen('s-ticket');
+	      if(d.escalation_required)document.getElementById('kt-esc').style.display='flex';
+	      kdLoadTickets(currentTicketFilter);
+	      kdScreen('s-ticket');
     }else{
       kdMsg('bot',d.ai_message||d.message||JSON.stringify(d));
     }
@@ -474,6 +674,7 @@ function kdReset(){
 document.addEventListener('keydown',function(e){
   if(e.key==='Enter'&&document.getElementById('s-welcome').classList.contains('on'))kdStart();
 });
+kdLoadTickets("");
 </script>
 </body>
 </html>"""
