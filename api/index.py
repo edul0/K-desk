@@ -362,7 +362,7 @@ def tickets_export_csv_route():
         return Response("Erro ao carregar tickets: " + str(e), status=500, mimetype="text/plain")
 
     output = io.StringIO()
-    writer = csv.writer(output)
+    writer = csv.writer(output, delimiter=';')
     writer.writerow(
         [
             "ticket_id",
@@ -405,7 +405,7 @@ def tickets_export_csv_route():
             ]
         )
 
-    csv_data = output.getvalue()
+    csv_data = '\ufeff' + output.getvalue()
     return Response(
         csv_data,
         mimetype="text/csv; charset=utf-8",
@@ -838,7 +838,7 @@ tbody td {
     <a class="btn-outline" href="/chat">← Voltar ao chat</a>
     <a class="btn-accent" href="/api/tickets/export.csv" id="btn-csv">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-      Exportar CSV
+      Exportar Excel (CSV)
     </a>
   </div>
 </div>
@@ -1106,8 +1106,8 @@ async function loadData(){
 }
 
 loadData();
-// Auto-refresh a cada 60s
-setInterval(loadData, 60000);
+// Auto-refresh a cada 5s
+setInterval(loadData, 5000);
 </script>
 </body>
 </html>"""
