@@ -338,7 +338,7 @@ def tickets_route():
         return jsonify({"tickets": rows}), 200
     except Exception as e:
         app.logger.error(f"tickets_route error: {e}")
-        return jsonify({"tickets": [], "error": "Falha ao carregar histórico."}), 200
+        return jsonify({"tickets": [], "error": f"Falha ao carregar histórico: {str(e)}"}), 200
 
 
 @app.route("/api/tickets/<ticket_id>/status", methods=["POST"])
@@ -1073,6 +1073,7 @@ async function loadData(){
     const res = await fetch('/api/tickets?limit=300');
     if(!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
+    if(data.error) throw new Error(data.error);
     const tickets = data.tickets || [];
 
     // KPIs
