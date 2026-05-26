@@ -1160,6 +1160,10 @@ body{font-family:'Inter',sans-serif;background:#f4f6f9;display:flex;align-items:
       <button class="kd-tab" id="tab-finalizado" onclick="kdLoadTickets('Finalizado')">Finalizados</button>
     </div>
     <div class="kd-admin-group">
+      <a class="kd-btn-action" href="/relatorio" target="_blank" style="text-decoration:none;color:inherit;">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+        Relatório
+      </a>
       <button class="kd-btn-action" onclick="window.location='/api/tickets/export.csv'">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
         CSV
