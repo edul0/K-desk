@@ -1,4 +1,4 @@
-﻿import json
+import json
 import os
 from datetime import datetime
 
@@ -27,9 +27,9 @@ CREATE TABLE IF NOT EXISTS tickets (
 
 
 def _conn():
-    db_url = os.environ.get("DATABASE_URL", "").strip()
+    db_url = os.environ.get("POSTGRES_URL", os.environ.get("DATABASE_URL", "")).strip()
     if not db_url:
-        raise RuntimeError("Missing DATABASE_URL")
+        raise RuntimeError("Variável POSTGRES_URL ou DATABASE_URL não configurada no ambiente")
     return psycopg.connect(db_url)
 
 
