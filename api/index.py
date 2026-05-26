@@ -20,6 +20,10 @@ ARTICLES = load_kb(KB_FILE)
 
 
 def gemini_assist(prompt: str) -> str | None:
+    return gemini_autonomous_agent(prompt)
+
+
+def gemini_autonomous_agent(prompt: str, system_instruction: str = "") -> str | None:
     api_key = os.environ.get("GEMINI_API_KEY", "").strip()
     if not api_key:
         return None
@@ -37,6 +41,11 @@ def gemini_assist(prompt: str) -> str | None:
                 }
             ]
         }
+        if system_instruction:
+            payload["system_instruction"] = {
+                "parts": [{"text": system_instruction}]
+            }
+
         req = urllib.request.Request(
             endpoint,
             data=json.dumps(payload).encode("utf-8"),
@@ -51,7 +60,8 @@ def gemini_assist(prompt: str) -> str | None:
         parts = (candidates[0].get("content") or {}).get("parts") or []
         text = "".join((p.get("text") or "") for p in parts).strip()
         return text or None
-    except Exception:
+    except Exception as e:
+        app.logger.error(f"Erro no Gemini: {e}")
         return None
 
 
@@ -150,31 +160,122 @@ def chat_proxy():
     if not description:
         return jsonify({"error": "Campo 'description' é obrigatório"}), 400
 
+    if os.environ.get("GEMINI_API_KEY"):
+        # Fluxo Autônomo com Gemini
+        kb_data = []
+        for a in ARTICLES:
+            kb_data.append({
+                "id": a.article_id,
+                "title": a.title,
+                "service": a.service,
+                "category": a.category,
+                "diagnostic_questions": a.diagnostic_questions,
+                "priority_guidance": a.priority_guidance,
+                "estimated_resolution_time": a.estimated_resolution_time,
+                "resolution_steps": a.resolution_steps,
+                "workaround": a.workaround,
+                "escalation_criteria": a.escalation_criteria
+            })
+        
+        system_prompt = f"""Você é um agente de suporte de TI super inteligente e autônomo.
+Sua missão é atender o usuário, entender o problema, consultar a Base de Conhecimento e registrar o chamado (ticket).
+Aja como um humano, com empatia, naturalidade e clareza. Não seja robótico.
+
+BASE DE CONHECIMENTO DISPONÍVEL (JSON):
+{json.dumps(kb_data, ensure_ascii=False)}
+
+REGRAS:
+1. Converse com o usuário para entender o problema dele. Se o relato inicial for apenas um cumprimento ("oi"), cumprimente de volta e pergunte como pode ajudar.
+2. Identifique qual artigo da base de conhecimento melhor se encaixa no problema.
+3. Se precisar de mais informações para fechar o diagnóstico (conforme 'diagnostic_questions' do artigo), faça as perguntas naturalmente.
+4. Quando você tiver informações suficientes (ou for um caso crítico de segurança), VOCÊ DEVE REGISTRAR O CHAMADO.
+5. Para registrar o chamado, você NÃO deve responder com texto normal. Você deve responder EXATAMENTE com um bloco JSON (e nada mais) contendo:
+```json
+{{
+  "action": "register_ticket",
+  "ticket_data": {{
+    "kb_article_id": "...",
+    "kb_article_title": "...",
+    "service": "...",
+    "category": "...",
+    "priority": "...",
+    "estimated_resolution_time": "...",
+    "resolution_steps": "...",
+    "workaround": "...",
+    "escalation_required": true/false,
+    "escalation_criteria": "..."
+  }}
+}}
+```
+6. Se você ainda precisa falar com o usuário, apenas responda com o texto da conversa. NUNCA envie o bloco JSON junto com a conversa.
+"""
+        chat_context = data.get("chat_context") or []
+        context_text = "\n".join(str(x) for x in chat_context[-12:])
+        prompt = f"Contexto da Conversa:\n{context_text}\n\nMensagem Atual do Usuário (descrição do payload): {description}"
+
+        ai_response = gemini_autonomous_agent(prompt, system_instruction=system_prompt)
+        
+        if ai_response:
+            if "```json" in ai_response and '"action":' in ai_response:
+                try:
+                    start = ai_response.find("```json") + 7
+                    end = ai_response.find("```", start)
+                    json_str = ai_response[start:end].strip()
+                    ticket_req = json.loads(json_str)
+                    
+                    if ticket_req.get("action") in ["register_ticket", "register"]:
+                        t_data = ticket_req.get("ticket_data", {})
+                        try:
+                            ticket_id = append_ticket(
+                                requester_name=requester_name,
+                                requester_email=requester_email,
+                                description=description + "\n\nHistórico:\n" + context_text,
+                                kb_article_id=t_data.get("kb_article_id", ""),
+                                service=t_data.get("service", ""),
+                                category=t_data.get("category", ""),
+                                priority=t_data.get("priority", "Média"),
+                                estimated_resolution_time=t_data.get("estimated_resolution_time", ""),
+                                escalation_required=t_data.get("escalation_required", False),
+                                escalation_reason=t_data.get("escalation_criteria", ""),
+                                collected_fields={},
+                            )
+                        except Exception as e:
+                            ticket_id = f"TKT-{uuid.uuid4().hex[:8].upper()}"
+                            app.logger.warning(f"Vercel SQL indisponível: {e}")
+
+                        return jsonify({
+                            "status": "registered",
+                            "ticket_id": ticket_id,
+                            "kb_article_id": t_data.get("kb_article_id", ""),
+                            "kb_article_title": t_data.get("kb_article_title", ""),
+                            "service": t_data.get("service", ""),
+                            "category": t_data.get("category", ""),
+                            "priority": t_data.get("priority", "Média"),
+                            "estimated_resolution_time": t_data.get("estimated_resolution_time", ""),
+                            "escalation_required": t_data.get("escalation_required", False),
+                            "escalation_criteria": t_data.get("escalation_criteria", ""),
+                            "resolution_steps": t_data.get("resolution_steps", ""),
+                            "workaround": t_data.get("workaround", ""),
+                            "ai_message": "Tudo certo! Acabei de registrar o seu chamado com os detalhes que você me passou. Posso ajudar com mais alguma coisa?"
+                        }), 200
+                except Exception as e:
+                    app.logger.error(f"Erro ao interpretar JSON autônomo do Gemini: {e}")
+                    pass
+            
+            msg = ai_response.replace("```json", "").replace("```", "").strip()
+            return jsonify({
+                "status": "need_more_info", 
+                "ai_message": msg,
+                "is_greeting": True
+            }), 200
+
+    # Fallback: se não tiver API key, usa a triagem local legacy
     status, payload = triage(description, answers, ARTICLES)
     chat_context = data.get("chat_context") or []
     context_text = " | ".join(str(x) for x in chat_context[-8:])
 
     if status in {"need_more_info", "missing_required"}:
-        msg = payload.get("message") or "Preciso de mais detalhes para continuar o atendimento."
-        
-        # Caso seja uma saudação, o prompt para o Gemini deve ser adaptado
-        if payload.get("is_greeting"):
-            ai_hint = gemini_assist(
-                "Você é um atendente simpático de suporte de TI. O usuário apenas disse um cumprimento amigável: '" + description + "'. "
-                "Responda ao cumprimento com empatia, calor humano e simpatia, e convide-o de forma curta a descrever o problema de TI que ele está enfrentando."
-            )
-        else:
-            pending_q = ""
-            if isinstance(payload.get("questions"), list) and payload.get("questions"):
-                pending_q = str(payload.get("questions")[0])
-            ai_hint = gemini_assist(
-                "Você é um atendente de TI experiente. Responda como humano, com empatia e objetividade. Faça uma pergunta curta para qualificar o chamado: "
-                + description
-                + " | Contexto: " + context_text
-                + " | Proxima pergunta obrigatoria: " + pending_q
-            )
-        if ai_hint:
-            msg = ai_hint
+        msg = payload.get("message") or "Preciso de mais detalhes."
         return jsonify({"status": status, "ai_message": msg, **payload}), 200
 
     article = payload["article"]
@@ -1371,7 +1472,13 @@ async function kdSend(){
     kdRmTyping();
 
     if(d.status==="need_more_info"||d.status==="missing_required"){
-      state="COLLECT";
+      if(d.is_greeting){
+        state="DESC";
+        ans={};
+        curQIdx=0;
+      }else{
+        state="COLLECT";
+      }
       const botText=d.ai_message||d.message||'Preciso de mais informações para continuar.';
       kdMsg('bot',botText);
     }else if(d.status==="registered"){

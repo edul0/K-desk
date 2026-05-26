@@ -79,12 +79,12 @@ def load_kb(path: Path) -> List[KBArticle]:
 
 # Palavras que ampliam o vocabulário de busca sem estar nos keywords exatos
 _SYNONYMS: Dict[str, List[str]] = {
-    "senha": ["password", "pass", "esqueci", "expirou", "redefinir", "reset"],
+    "senha": ["password", "pass", "esqueci", "expirou", "redefinir", "reset", "trocar", "alterar", "desbloquear"],
     "acesso": ["entrar", "login", "acessar", "conectar"],
     "bloqueado": ["bloqueou", "travou", "bloqueada", "locked"],
     "email": ["e-mail", "correio", "mensagem", "caixa"],
     "impressora": ["imprimir", "impressao", "print"],
-    "wifi": ["wi-fi", "rede sem fio", "wireless", "internet"],
+    "wifi": ["wi-fi", "rede sem fio", "wireless", "internet", "net", "conexao", "conexão", "cabo", "sinal", "sem rede", "sem internet"],
     "vpn": ["acesso remoto", "rede privada"],
     "lento": ["devagar", "travando", "demora", "lentidao"],
     "virus": ["malware", "infectado", "antivirus"],
