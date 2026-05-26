@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>K-Desk · Suporte de TI</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0e17;
+      --surface: #111827;
+      --surface2: #1a2235;
+      --border: #1e2d45;
+      --accent: #00c2ff;
+      --accent2: #0077b6;
+      --success: #00e096;
+      --warning: #ffc107;
+      --danger: #ff4d6d;
+      --text: #e2e8f0;
+      --text-muted: #64748b;
+      --text-dim: #94a3b8;
+      --mono: 'IBM Plex Mono', monospace;
+      --sans: 'IBM Plex Sans', sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      font-family: var(--sans);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    /* Animated background grid */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0,194,255,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,194,255,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    body::after {
+      content: '';
+      position: fixed;
+      top: -50%;
+      left: -20%;
+      width: 60%;
+      height: 100%;
+      background: radial-gradient(ellipse, rgba(0,119,182,0.08) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── WRAPPER ── */
+    #app {
+      position: relative;
+      z-index: 1;
+      width: 480px;
+      max-width: calc(100vw - 32px);
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    /* ── HEADER ── */
+    .k-header {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-bottom: none;
+      border-radius: 12px 12px 0 0;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .k-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .k-logo {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, var(--accent2), var(--accent));
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 500;
+      color: #fff;
+      letter-spacing: -1px;
+    }
+
+    .k-brand-text {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .k-brand-name {
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      color: var(--text);
+    }
+
+    .k-brand-sub {
+      font-size: 10px;
+      font-family: var(--mono);
+      color: var(--text-muted);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .k-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-family: var(--mono);
+      color: var(--success);
+    }
+
+    .k-status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--success);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.8); }
+    }
+
+    /* ── MAIN PANEL ── */
+    #main-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 0 0 12px 12px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      height: 560px;
+    }
+
+    /* ── SCREENS ── */
+    .screen {
+      display: none;
+      flex-direction: column;
+      height: 100%;
+      animation: fadeIn 0.25s ease;
+    }
+
+    .screen.active { display: flex; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── SCREEN: WELCOME ── */
+    #screen-welcome {
+      align-items: center;
+      justify-content: center;
+      padding: 40px 32px;
+      gap: 24px;
+    }
+
+    .welcome-icon {
+      width: 56px;
+      height: 56px;
+      background: linear-gradient(135deg, var(--accent2), var(--accent));
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+    }
+
+    .welcome-title {
+      font-size: 20px;
+      font-weight: 600;
+      text-align: center;
+      line-height: 1.3;
+    }
+
+    .welcome-subtitle {
+      font-size: 13px;
+      color: var(--text-dim);
+      text-align: center;
+      line-height: 1.6;
+      max-width: 320px;
+    }
+
+    .form-group {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .form-label {
+      font-size: 11px;
+      font-family: var(--mono);
+      color: var(--text-muted);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .form-input {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 11px 14px;
+      font-size: 14px;
+      font-family: var(--sans);
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.2s;
+      width: 100%;
+    }
+
+    .form-input:focus { border-color: var(--accent); }
+    .form-input::placeholder { color: var(--text-muted); }
+
+    .form-fields {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .btn-primary {
+      width: 100%;
+      padding: 12px;
+      background: linear-gradient(135deg, var(--accent2), var(--accent));
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      font-family: var(--sans);
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+      letter-spacing: 0.3px;
+    }
+
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-primary:active { transform: scale(0.99); }
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── SCREEN: CHAT ── */
+    #screen-chat {
+      display: none;
+      flex-direction: column;
+    }
+
+    #screen-chat.active { display: flex; }
+
+    .chat-user-bar {
+      padding: 10px 16px;
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+
+    .chat-user-bar span { font-family: var(--mono); color: var(--accent); }
+
+    #chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+
+    .msg {
+      display: flex;
+      flex-direction: column;
+      max-width: 86%;
+      animation: msgIn 0.2s ease;
+    }
+
+    @keyframes msgIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .msg.bot { align-self: flex-start; }
+    .msg.user { align-self: flex-end; }
+
+    .msg-bubble {
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-size: 13.5px;
+      line-height: 1.55;
+      white-space: pre-line;
+    }
+
+    .msg.bot .msg-bubble {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-bottom-left-radius: 3px;
+      color: var(--text);
+    }
+
+    .msg.user .msg-bubble {
+      background: linear-gradient(135deg, var(--accent2), var(--accent));
+      border-bottom-right-radius: 3px;
+      color: #fff;
+    }
+
+    .msg.typing .msg-bubble {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-style: italic;
+    }
+
+    .typing-dots {
+      display: inline-flex;
+      gap: 4px;
+      align-items: center;
+    }
+
+    .typing-dots span {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      animation: dot 1.2s infinite;
+    }
+
+    .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes dot {
+      0%, 80%, 100% { transform: scale(0.7); opacity: 0.5; }
+      40% { transform: scale(1); opacity: 1; }
+    }
+
+    .msg-meta {
+      font-size: 10px;
+      font-family: var(--mono);
+      color: var(--text-muted);
+      margin-top: 4px;
+      padding: 0 4px;
+    }
+
+    .msg.user .msg-meta { text-align: right; }
+
+    #chat-input-area {
+      padding: 12px 14px;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      display: flex;
+      gap: 8px;
+    }
+
+    #chat-input {
+      flex: 1;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 13.5px;
+      font-family: var(--sans);
+      color: var(--text);
+      outline: none;
+      resize: none;
+      transition: border-color 0.2s;
+    }
+
+    #chat-input:focus { border-color: var(--accent); }
+    #chat-input::placeholder { color: var(--text-muted); }
+
+    #btn-send {
+      padding: 10px 16px;
+      background: var(--accent);
+      border: none;
+      border-radius: 8px;
+      color: var(--bg);
+      font-weight: 600;
+      font-size: 13px;
+      font-family: var(--sans);
+      cursor: pointer;
+      transition: opacity 0.2s;
+      white-space: nowrap;
+    }
+
+    #btn-send:hover { opacity: 0.85; }
+    #btn-send:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    /* ── SCREEN: TICKET ── */
+    #screen-ticket {
+      padding: 28px 24px;
+      gap: 20px;
+      overflow-y: auto;
+    }
+
+    .ticket-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .ticket-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: rgba(0, 224, 150, 0.1);
+      border: 1px solid rgba(0, 224, 150, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+
+    .ticket-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--success);
+    }
+
+    .ticket-id {
+      font-size: 11px;
+      font-family: var(--mono);
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .ticket-divider {
+      height: 1px;
+      background: var(--border);
+    }
+
+    .ticket-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .ticket-field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+
+    .ticket-field.full { grid-column: 1 / -1; }
+
+    .ticket-field-label {
+      font-size: 10px;
+      font-family: var(--mono);
+      color: var(--text-muted);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .ticket-field-value {
+      font-size: 13px;
+      color: var(--text);
+      font-weight: 500;
+      line-height: 1.4;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-family: var(--mono);
+      font-weight: 500;
+    }
+
+    .badge-critica { background: rgba(255,77,109,0.15); color: #ff4d6d; border: 1px solid rgba(255,77,109,0.3); }
+    .badge-alta { background: rgba(255,193,7,0.15); color: #ffc107; border: 1px solid rgba(255,193,7,0.3); }
+    .badge-media { background: rgba(0,194,255,0.15); color: var(--accent); border: 1px solid rgba(0,194,255,0.3); }
+    .badge-baixa { background: rgba(0,224,150,0.15); color: var(--success); border: 1px solid rgba(0,224,150,0.3); }
+
+    .escalation-alert {
+      background: rgba(255,77,109,0.08);
+      border: 1px solid rgba(255,77,109,0.25);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 12.5px;
+      color: #ff8fa3;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .btn-new {
+      width: 100%;
+      padding: 11px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-dim);
+      font-size: 13px;
+      font-family: var(--sans);
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s;
+      margin-top: 4px;
+    }
+
+    .btn-new:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── PROGRESS BAR ── */
+    .k-progress {
+      height: 2px;
+      background: var(--border);
+      overflow: hidden;
+    }
+
+    .k-progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent2), var(--accent));
+      transition: width 0.4s ease;
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div class="k-header">
+    <div class="k-brand">
+      <div class="k-logo">KD</div>
+      <div class="k-brand-text">
+        <span class="k-brand-name">K-Desk</span>
+        <span class="k-brand-sub">Suporte Inteligente</span>
+      </div>
+    </div>
+    <div class="k-status">
+      <div class="k-status-dot"></div>
+      online
+    </div>
+  </div>
+  <div class="k-progress"><div class="k-progress-bar" id="progress-bar" style="width:0%"></div></div>
+
+  <div id="main-panel">
+
+    <!-- TELA 1: IDENTIFICAÇÃO -->
+    <div class="screen active" id="screen-welcome">
+      <div class="welcome-icon">🖥️</div>
+      <div class="welcome-title">Central de Suporte de TI</div>
+      <div class="welcome-subtitle">Identifique-se para iniciar o atendimento. Seu chamado será registrado e acompanhado automaticamente.</div>
+      <div class="form-fields">
+        <div class="form-group">
+          <label class="form-label">Nome completo</label>
+          <input class="form-input" id="input-name" type="text" placeholder="Seu nome" autocomplete="name">
+        </div>
+        <div class="form-group">
+          <label class="form-label">E-mail corporativo</label>
+          <input class="form-input" id="input-email" type="email" placeholder="voce@empresa.com" autocomplete="email">
+        </div>
+      </div>
+      <button class="btn-primary" id="btn-start" onclick="startChat()">Iniciar atendimento →</button>
+    </div>
+
+    <!-- TELA 2: CHAT -->
+    <div class="screen" id="screen-chat">
+      <div class="chat-user-bar">
+        <span id="chat-user-label">—</span>
+        <span style="color: var(--text-muted)">·</span>
+        <span style="color: var(--text-muted); font-family: var(--sans);" id="chat-email-label">—</span>
+      </div>
+      <div id="chat-messages"></div>
+      <div id="chat-input-area">
+        <input id="chat-input" type="text" placeholder="Descreva seu problema de TI..." onkeypress="handleKey(event)">
+        <button id="btn-send" onclick="sendMessage()">Enviar</button>
+      </div>
+    </div>
+
+    <!-- TELA 3: TICKET CONFIRMADO -->
+    <div class="screen" id="screen-ticket">
+      <div class="ticket-header">
+        <div class="ticket-icon">✅</div>
+        <div>
+          <div class="ticket-title">Chamado registrado</div>
+          <div class="ticket-id" id="t-id">—</div>
+        </div>
+      </div>
+      <div class="ticket-divider"></div>
+      <div class="ticket-grid">
+        <div class="ticket-field">
+          <span class="ticket-field-label">Serviço</span>
+          <span class="ticket-field-value" id="t-service">—</span>
+        </div>
+        <div class="ticket-field">
+          <span class="ticket-field-label">Categoria</span>
+          <span class="ticket-field-value" id="t-category">—</span>
+        </div>
+        <div class="ticket-field">
+          <span class="ticket-field-label">Prioridade</span>
+          <span class="ticket-field-value" id="t-priority">—</span>
+        </div>
+        <div class="ticket-field">
+          <span class="ticket-field-label">Prazo estimado</span>
+          <span class="ticket-field-value" id="t-eta">—</span>
+        </div>
+        <div class="ticket-field full">
+          <span class="ticket-field-label">Artigo de referência</span>
+          <span class="ticket-field-value" id="t-article">—</span>
+        </div>
+        <div class="ticket-field full">
+          <span class="ticket-field-label">Próximos passos</span>
+          <span class="ticket-field-value" id="t-steps">—</span>
+        </div>
+        <div class="ticket-field full" id="t-workaround-block" style="display:none">
+          <span class="ticket-field-label">Contorno disponível</span>
+          <span class="ticket-field-value" id="t-workaround">—</span>
+        </div>
+      </div>
+      <div class="escalation-alert" id="t-escalation" style="display:none">
+        ⚠️ <span>Este chamado será encaminhado para um analista humano conforme critérios de escalonamento.</span>
+      </div>
+      <button class="btn-new" onclick="resetAll()">+ Abrir novo chamado</button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  const N8N_URL = "https://eduardol.app.n8n.cloud/webhook/chat";
+
+  let userName = "";
+  let userEmail = "";
+  let currentDescription = "";
+  let collectedAnswers = {};
+  let state = "AWAITING_DESCRIPTION";
+  let currentQuestion = "";
+
+  function setProgress(pct) {
+    document.getElementById('progress-bar').style.width = pct + '%';
+  }
+
+  function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
+
+  function startChat() {
+    const name = document.getElementById('input-name').value.trim();
+    const email = document.getElementById('input-email').value.trim();
+    if (!name || !email) {
+      alert('Preencha nome e e-mail para continuar.');
+      return;
+    }
+    userName = name;
+    userEmail = email;
+    document.getElementById('chat-user-label').textContent = name;
+    document.getElementById('chat-email-label').textContent = email;
+    showScreen('screen-chat');
+    setProgress(33);
+    addMsg('bot', `Olá, ${name}! Descreva seu problema ou incidente de TI com o máximo de detalhes possível.`);
+    document.getElementById('chat-input').focus();
+  }
+
+  function addMsg(type, text) {
+    const box = document.getElementById('chat-messages');
+    const div = document.createElement('div');
+    div.className = 'msg ' + type;
+
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble';
+    bubble.textContent = text;
+
+    const meta = document.createElement('div');
+    meta.className = 'msg-meta';
+    meta.textContent = new Date().toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+
+    div.appendChild(bubble);
+    div.appendChild(meta);
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
+    return div;
+  }
+
+  function addTyping() {
+    const box = document.getElementById('chat-messages');
+    const div = document.createElement('div');
+    div.className = 'msg typing';
+    div.id = 'typing-indicator';
+    div.innerHTML = '<div class="msg-bubble"><span class="typing-dots"><span></span><span></span><span></span></span></div>';
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function removeTyping() {
+    const el = document.getElementById('typing-indicator');
+    if (el) el.remove();
+  }
+
+  async function sendMessage(force = false) {
+    const input = document.getElementById('chat-input');
+    const btn = document.getElementById('btn-send');
+    let text = input.value.trim();
+
+    // ROTA DE FUGA: Se o botão foi clicado, manda o usuário falar
+    if (force) {
+      text = "Prefiro finalizar agora e falar com um atendente humano.";
+      addMsg('user', text);
+    } else {
+      if (!text) return;
+      addMsg('user', text);
+      input.value = '';
+      btn.disabled = true;
+
+      if (state === "AWAITING_DESCRIPTION") {
+        currentDescription = text;
+      } else if (state === "COLLECTING" && currentQuestion) {
+        collectedAnswers[currentQuestion] = text;
+      }
+    }
+
+    addTyping();
+
+    try {
+      const res = await fetch(N8N_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          description: currentDescription,
+          answers: collectedAnswers,
+          requester_name: userName,
+          requester_email: userEmail,
+          force_escalation: force // Manda a flag pro Python forçar o registro
+        })
+      });
+
+      const data = await res.json();
+      removeTyping();
+
+      if (data.status === "need_more_info" || data.status === "missing_required") {
+        state = "COLLECTING";
+        setProgress(data.status === "need_more_info" ? 50 : 66);
+        
+        const arr = data.questions || data.required_fields || [];
+        currentQuestion = arr.find(q => !collectedAnswers[q]) || arr[0];
+
+        // Lê a mensagem do Mistral (ai_message) ou usa o fallback padrão
+        let botText = data.ai_message || `Preciso de mais informações:\n\n👉 ${currentQuestion}`;
+
+        // Se a IA já coletou pelo menos 1 resposta antes, oferece o botão de saída
+        if (Object.keys(collectedAnswers).length >= 1 && !document.getElementById('btn-force')) {
+          botText += "\n\nSe preferir, posso parar de perguntar e enviar este chamado direto para um analista humano. O que acha?";
+          addMsg('bot', botText);
+
+          // Injeta o botão usando o seu tema atual
+          const box = document.getElementById('chat-messages');
+          const dEsc = document.createElement('div');
+          dEsc.innerHTML = `<button id="btn-force" onclick="this.remove(); sendMessage(true)" style="margin-top:6px; padding:10px 14px; background:var(--danger); color:white; border:none; border-radius:8px; cursor:pointer; font-size:13px; font-weight:600; font-family:var(--sans); transition: opacity 0.2s;">Finalizar e chamar humano</button>`;
+          dEsc.style.textAlign = 'left';
+          dEsc.style.marginLeft = '12px';
+          box.appendChild(dEsc);
+          box.scrollTop = box.scrollHeight;
+        } else {
+          if (currentQuestion) addMsg('bot', botText);
+        }
+
+      } else if (data.status === "registered") {
+        setProgress(100);
+        showTicket(data);
+
+      } else {
+        addMsg('bot', data.ai_message || 'Resposta inesperada. Tente novamente.');
+      }
+
+    } catch (err) {
+      removeTyping();
+      addMsg('bot', 'Erro de conexão. Verifique sua rede e tente novamente.');
+      console.error(err);
+    }
+
+    if (!force) {
+      btn.disabled = false;
+      input.focus();
+    }
+  }

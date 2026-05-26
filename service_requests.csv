@@ -1,0 +1,2 @@
+ticket_id,created_at,requester_name,requester_email,description,kb_article_id,service,category,priority,estimated_resolution_time,escalation_required,escalation_reason,collected_fields_json,status
+TKT-0001,2026-05-18T13:15:24,Teste,teste@empresa.com,N?o consigo conectar na VPN e aparece erro de certificado,KB-008,Acesso Remoto,Rede,Alta,Até 4 horas úteis para usuário individual; resposta imediata em falha generalizada.,não,,"{""codigo_erro"": ""CERT-01""}",Aberto
