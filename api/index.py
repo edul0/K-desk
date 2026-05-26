@@ -246,7 +246,12 @@ def ticket_status_route(ticket_id: str):
 
 @app.route("/api/tickets/export.csv", methods=["GET"])
 def tickets_export_csv_route():
-    rows = list_tickets(limit=1000)
+    try:
+        rows = list_tickets(limit=1000)
+    except Exception as e:
+        app.logger.error(f"export.csv list_tickets error: {e}")
+        return Response("Erro ao carregar tickets: " + str(e), status=500, mimetype="text/plain")
+
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(
@@ -263,21 +268,24 @@ def tickets_export_csv_route():
             "status",
             "escalation_required",
             "escalation_reason",
-            "ai_note",
         ]
     )
     for row in rows:
-        description = str(row.get("description") or "")
-        ai_note = gemini_assist(
-            "Resuma em uma linha o próximo passo para o chamado: " + description[:400]
-        ) or ""
+        created_at = row.get("created_at")
+        if created_at is None:
+            created_at_str = ""
+        elif hasattr(created_at, "isoformat"):
+            created_at_str = created_at.isoformat()
+        else:
+            created_at_str = str(created_at)
+
         writer.writerow(
             [
                 row.get("ticket_id", ""),
-                (row.get("created_at").isoformat() if row.get("created_at") else ""),
+                created_at_str,
                 row.get("requester_name", ""),
                 row.get("requester_email", ""),
-                description,
+                str(row.get("description") or ""),
                 row.get("service", ""),
                 row.get("category", ""),
                 row.get("priority", ""),
@@ -285,7 +293,6 @@ def tickets_export_csv_route():
                 row.get("status", ""),
                 row.get("escalation_required", ""),
                 row.get("escalation_reason", ""),
-                ai_note,
             ]
         )
 
