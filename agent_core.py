@@ -153,6 +153,10 @@ def triage(description: str, answers: Dict[str, str], articles: List[KBArticle])
     answers: dict com chaves sendo índices string ("0", "1", "2") das perguntas
     respondidas pelo usuário, mapeados aos textos das respostas.
     """
+    # Detecta cumprimentos genéricos ou entradas curtas demais/sem contexto de TI
+    norm_desc = normalize(description)
+    greetings = {"oi", "ola", "bom dia", "boa tarde", "boa noite", "tudo bem", "ola tudo bem", "hello", "hi", "hey"}
+    
     ranked = sorted(
         ((a, score_article(description, a)) for a in articles),
         key=lambda x: x[1],
@@ -160,6 +164,16 @@ def triage(description: str, answers: Dict[str, str], articles: List[KBArticle])
     )
     best, best_score = ranked[0]
     second_score = ranked[1][1] if len(ranked) > 1 else 0.0
+
+    if norm_desc in greetings or len(norm_desc) < 3 or best_score < 0.2:
+        return "need_more_info", {
+            "kb_article_id": "",
+            "kb_article_title": "",
+            "questions": [],
+            "next_question_index": 0,
+            "message": "Olá! Como posso te ajudar com o suporte de TI hoje? Por favor, descreva o problema ou incidente que você está enfrentando com o máximo de detalhes possível.",
+            "is_greeting": True
+        }
 
     # Threshold reduzido: score >= 1.5 e diferença >= 0.8 já é match claro
     ambiguous = best_score < 1.5 or (best_score - second_score) < 0.8

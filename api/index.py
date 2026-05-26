@@ -156,15 +156,23 @@ def chat_proxy():
 
     if status in {"need_more_info", "missing_required"}:
         msg = payload.get("message") or "Preciso de mais detalhes para continuar o atendimento."
-        pending_q = ""
-        if isinstance(payload.get("questions"), list) and payload.get("questions"):
-            pending_q = str(payload.get("questions")[0])
-        ai_hint = gemini_assist(
-            "Você é um atendente de TI experiente. Responda como humano, com empatia e objetividade. Faça uma pergunta curta para qualificar o chamado: "
-            + description
-            + " | Contexto: " + context_text
-            + " | Proxima pergunta obrigatoria: " + pending_q
-        )
+        
+        # Caso seja uma saudação, o prompt para o Gemini deve ser adaptado
+        if payload.get("is_greeting"):
+            ai_hint = gemini_assist(
+                "Você é um atendente simpático de suporte de TI. O usuário apenas disse um cumprimento amigável: '" + description + "'. "
+                "Responda ao cumprimento com empatia, calor humano e simpatia, e convide-o de forma curta a descrever o problema de TI que ele está enfrentando."
+            )
+        else:
+            pending_q = ""
+            if isinstance(payload.get("questions"), list) and payload.get("questions"):
+                pending_q = str(payload.get("questions")[0])
+            ai_hint = gemini_assist(
+                "Você é um atendente de TI experiente. Responda como humano, com empatia e objetividade. Faça uma pergunta curta para qualificar o chamado: "
+                + description
+                + " | Contexto: " + context_text
+                + " | Proxima pergunta obrigatoria: " + pending_q
+            )
         if ai_hint:
             msg = ai_hint
         return jsonify({"status": status, "ai_message": msg, **payload}), 200
