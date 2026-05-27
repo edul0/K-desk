@@ -226,22 +226,29 @@ REGRAS:
                     if ticket_req.get("action") in ["register_ticket", "register"]:
                         t_data = ticket_req.get("ticket_data", {})
                         try:
+                            # Sanitização para evitar TypeError/NotNullViolation se o Gemini retornar null
+                            safe_str = lambda x: str(x) if x is not None else ""
                             ticket_id = append_ticket(
-                                requester_name=requester_name,
-                                requester_email=requester_email,
-                                description=description + "\n\nHistórico:\n" + context_text,
-                                kb_article_id=t_data.get("kb_article_id", ""),
-                                service=t_data.get("service", ""),
-                                category=t_data.get("category", ""),
-                                priority=t_data.get("priority", "Média"),
-                                estimated_resolution_time=t_data.get("estimated_resolution_time", ""),
-                                escalation_required=t_data.get("escalation_required", False),
-                                escalation_reason=t_data.get("escalation_criteria", ""),
+                                requester_name=safe_str(requester_name),
+                                requester_email=safe_str(requester_email),
+                                description=safe_str(description) + "\n\nHistórico:\n" + safe_str(context_text),
+                                kb_article_id=safe_str(t_data.get("kb_article_id")),
+                                service=safe_str(t_data.get("service")),
+                                category=safe_str(t_data.get("category")),
+                                priority=safe_str(t_data.get("priority")) or "Média",
+                                estimated_resolution_time=safe_str(t_data.get("estimated_resolution_time")),
+                                escalation_required=bool(t_data.get("escalation_required")),
+                                escalation_reason=safe_str(t_data.get("escalation_criteria")),
                                 collected_fields={},
                             )
                         except Exception as e:
-                            ticket_id = f"TKT-{uuid.uuid4().hex[:8].upper()}"
-                            app.logger.warning(f"Vercel SQL indisponível: {e}")
+                            app.logger.error(f"Erro ao salvar no Vercel SQL: {e}")
+                            ticket_id = f"TKT-ERRO-{uuid.uuid4().hex[:6].upper()}"
+                            return jsonify({
+                                "status": "registered",
+                                "ticket_id": ticket_id,
+                                "ai_message": f"⚠️ Concluí o diagnóstico, porém houve um erro ao salvar seu ticket no banco de dados: {str(e)}"
+                            }), 200
 
                         return jsonify({
                             "status": "registered",
