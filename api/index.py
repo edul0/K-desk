@@ -271,9 +271,12 @@ ATENÇÃO: Se o usuário ainda NÃO confirmou que deseja abrir o chamado, você 
                     if ticket_req.get("action") in ["register_ticket", "register"]:
                         if not is_step_4:
                             # BLOQUEIO FORÇADO VIA PYTHON
+                            # Se a IA tentou registrar o chamado antes da hora, interceptamos
+                            # e substituímos a mensagem dela por uma pergunta forçada.
+                            fallback_msg = "Para podermos registrar esse chamado com as informações corretas, preciso que você me confirme: as dicas de solução rápida não resolveram o seu problema? Quer que eu siga com a abertura do ticket?"
                             return jsonify({
                                 "status": "need_more_info",
-                                "ai_message": ticket_req.get("thought", "Para podermos registrar esse chamado, você confirma a abertura?"),
+                                "ai_message": fallback_msg,
                                 "is_greeting": True
                             }), 200
                             
