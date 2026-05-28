@@ -45,6 +45,10 @@ def gemini_autonomous_agent(prompt: str, system_instruction: str = "") -> str | 
             payload["system_instruction"] = {
                 "parts": [{"text": system_instruction}]
             }
+        
+        payload["generationConfig"] = {
+            "responseMimeType": "application/json"
+        }
 
         req = urllib.request.Request(
             endpoint,
@@ -277,8 +281,7 @@ Você DEVE SEMPRE responder EXATAMENTE E APENAS com um bloco JSON. Não escreva 
                     if ticket_req.get("action") in ["register_ticket", "register"]:
                         if not is_step_4:
                             # BLOQUEIO FORÇADO VIA PYTHON
-                            # Se a IA tentou registrar o chamado antes da hora, interceptamos
-                            fallback_msg = "Ainda não podemos abrir um chamado. Como manda o nosso protocolo de TI, precisamos tentar resolver o problema por aqui primeiro. Qual é o erro exato que aparece para você? Já tentou reiniciar o equipamento?"
+                            fallback_msg = f"Ainda não podemos abrir um chamado. Precisamos tentar resolver o problema por aqui primeiro (Interações: {user_msg_count}/3). Qual é o erro exato que aparece para você? Já tentou reiniciar o equipamento?"
                             return jsonify({
                                 "status": "need_more_info",
                                 "ai_message": fallback_msg,
