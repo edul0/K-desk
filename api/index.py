@@ -173,8 +173,13 @@ def chat_proxy():
 
     if os.environ.get("GEMINI_API_KEY"):
         # Fluxo Autônomo com Gemini
+        # Pré-filtra a KB: envia apenas os 3 artigos mais relevantes (economiza tokens!)
+        from agent_core import score_article
+        ranked_articles = sorted(ARTICLES, key=lambda a: score_article(description, a), reverse=True)
+        top_articles = ranked_articles[:3]
+        
         kb_data = []
-        for a in ARTICLES:
+        for a in top_articles:
             kb_data.append({
                 "id": a.article_id,
                 "title": a.title,
@@ -189,7 +194,7 @@ def chat_proxy():
             })
         
         chat_context = data.get("chat_context") or []
-        context_text = "\n".join(str(x) for x in chat_context[-30:])
+        context_text = "\n".join(str(x) for x in chat_context[-10:])
 
         # Conta quantas interações o usuário já teve
         user_msg_count = sum(1 for msg in chat_context if "Usuário:" in str(msg))
