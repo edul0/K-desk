@@ -310,7 +310,19 @@ ATENÇÃO: Se o usuário ainda NÃO confirmou que deseja abrir o chamado, você 
                     app.logger.error(f"Erro ao interpretar JSON autônomo do Gemini: {e}")
                     pass
             
+            # Se não for JSON ou o parser falhar, assume que é uma resposta em texto livre,
+            # limpa qualquer lixo de formatação (```json ou ```)
             msg = ai_response.replace("```json", "").replace("```", "").strip()
+            
+            # Tentar ver se ela tentou mandar um JSON quebrado de 'reply' sem formatação
+            try:
+                # Caso a IA mande JSON sem as crases (```), tenta carregar
+                temp_req = json.loads(msg)
+                if isinstance(temp_req, dict) and "message" in temp_req:
+                    msg = temp_req.get("message")
+            except:
+                pass
+                
             return jsonify({
                 "status": "need_more_info", 
                 "ai_message": msg,
