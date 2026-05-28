@@ -28,7 +28,7 @@ def gemini_autonomous_agent(prompt: str, system_instruction: str = "") -> str | 
     if not api_key:
         return None
     try:
-        model = os.environ.get("GEMINI_MODEL", "gemini-3.0-flash")
+        model = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
         endpoint = (
             f"https://generativelanguage.googleapis.com/v1beta/models/"
             f"{model}:generateContent?key={urllib.parse.quote(api_key)}"
