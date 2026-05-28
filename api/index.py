@@ -66,7 +66,14 @@ def gemini_autonomous_agent(prompt: str, system_instruction: str = "") -> str | 
         return text or None
     except Exception as e:
         app.logger.error(f"Erro no Gemini: {e}")
-        return None
+        # Retorna o erro como JSON para forçar a exibição na tela e evitar o fallback silencioso
+        err_msg = str(e)
+        if hasattr(e, 'read'):
+            err_msg += " " + e.read().decode('utf-8')
+        return json.dumps({
+            "action": "reply",
+            "message": f"ERRO DA API DO GOOGLE: {err_msg}"
+        })
 
 
 @app.route("/", methods=["GET"])
