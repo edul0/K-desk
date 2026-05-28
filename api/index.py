@@ -196,9 +196,9 @@ REGRA DE ABERTURA DO CHAMADO (JSON):
 7. No bloco JSON, você deve preencher o campo 'troubleshooting_summary' com um resumo detalhado de TUDO o que foi relatado pelo usuário e TUDO o que você sugeriu/tentou resolver no chat.
 8. No momento exato em que for registrar o chamado, responda APENAS E EXATAMENTE com o bloco JSON abaixo:
 ```json
-{
+{{
   "action": "register_ticket",
-  "ticket_data": {
+  "ticket_data": {{
     "kb_article_id": "...",
     "kb_article_title": "...",
     "service": "...",
@@ -210,8 +210,8 @@ REGRA DE ABERTURA DO CHAMADO (JSON):
     "troubleshooting_summary": "...",
     "escalation_required": true/false,
     "escalation_criteria": "..."
-  }
-}
+  }}
+}}
 ```
 """
         chat_context = data.get("chat_context") or []
