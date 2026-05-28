@@ -177,6 +177,32 @@ def chat_proxy():
                 "escalation_criteria": a.escalation_criteria
             })
         
+        chat_context = data.get("chat_context") or []
+        context_text = "\n".join(str(x) for x in chat_context[-30:])
+
+        if len(chat_context) < 2:
+            registro_json_schema = "AINDA NÃO É PERMITIDO ABRIR O CHAMADO NESTA ETAPA. Você deve obrigatoriamente investigar o problema primeiro, respondendo com 'action': 'reply'."
+        else:
+            registro_json_schema = """Se o usuário pedir para abrir o chamado ou confirmar que a dica falhou (PASSO 4), use:
+```json
+{
+  "action": "register_ticket",
+  "ticket_data": {
+    "kb_article_id": "...",
+    "kb_article_title": "...",
+    "service": "...",
+    "category": "...",
+    "priority": "...",
+    "estimated_resolution_time": "...",
+    "resolution_steps": "...",
+    "workaround": "...",
+    "troubleshooting_summary": "...",
+    "escalation_required": true/false,
+    "escalation_criteria": "..."
+  }
+}
+```"""
+
         system_prompt = f"""Você é um agente de suporte de TI (Nível 1).
 Seu foco PRINCIPAL é tentar resolver o problema do usuário AQUI E AGORA NO CHAT.
 Abrir um chamado (ticket) é o ÚLTIMO RECURSO, e NUNCA deve ser a sua primeira resposta.
@@ -201,29 +227,9 @@ Se você está nos Passos 1, 2 ou 3 (Conversando e Investigando):
 }}
 ```
 
-Se você chegou no Passo 4 (Registrar Chamado):
-```json
-{{
-  "action": "register_ticket",
-  "ticket_data": {{
-    "kb_article_id": "...",
-    "kb_article_title": "...",
-    "service": "...",
-    "category": "...",
-    "priority": "...",
-    "estimated_resolution_time": "...",
-    "resolution_steps": "...",
-    "workaround": "...",
-    "troubleshooting_summary": "...",
-    "escalation_required": true/false,
-    "escalation_criteria": "..."
-  }}
-}}
-```
+{registro_json_schema}
 """
-        chat_context = data.get("chat_context") or []
-        # Aumentar contexto para capturar todo o troubleshooting
-        context_text = "\n".join(str(x) for x in chat_context[-30:])
+
         prompt = f"Contexto da Conversa:\n{context_text}\n\nMensagem Atual do Usuário (descrição do payload): {description}"
 
         ai_response = gemini_autonomous_agent(prompt, system_instruction=system_prompt)
