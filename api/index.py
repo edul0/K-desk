@@ -179,6 +179,33 @@ def chat_proxy():
         
         chat_context = data.get("chat_context") or []
         context_text = "\n".join(str(x) for x in chat_context[-30:])
+        
+        # Check if the user authorized ticket creation
+        is_step_4 = len(chat_context) >= 2 and any(word in description.lower() for word in ['sim', 'pode', 'abre', 'quero', 'ticket', 'chamado'])
+        
+        if not is_step_4:
+            schema_registro = "AVISO: VOCÊ ESTÁ NA FASE DE INVESTIGAÇÃO. A ABERTURA DE CHAMADO ESTÁ BLOQUEADA."
+        else:
+            schema_registro = """Se o usuário AUTORIZOU CLARAMENTE a abertura do chamado (Passo 4):
+```json
+{
+  "thought": "O usuário testou as dicas e não funcionou, e ele aceitou abrir o chamado. Vou registrar o ticket.",
+  "action": "register_ticket",
+  "ticket_data": {
+    "kb_article_id": "...",
+    "kb_article_title": "...",
+    "service": "...",
+    "category": "...",
+    "priority": "...",
+    "estimated_resolution_time": "...",
+    "resolution_steps": "...",
+    "workaround": "...",
+    "troubleshooting_summary": "Resumo de tudo que tentamos no chat...",
+    "escalation_required": true,
+    "escalation_criteria": "..."
+  }
+}
+```"""
 
         system_prompt = f"""Você é um agente de suporte de TI (Nível 1).
 Seu foco PRINCIPAL é tentar resolver o problema do usuário AQUI NO CHAT.
@@ -205,26 +232,7 @@ Se você está nos Passos 1, 2 ou 3 (Investigando e perguntando):
 }}
 ```
 
-Se o usuário AUTORIZOU CLARAMENTE a abertura do chamado (Passo 4):
-```json
-{{
-  "thought": "O usuário testou as dicas e não funcionou, e ele aceitou abrir o chamado. Vou registrar o ticket.",
-  "action": "register_ticket",
-  "ticket_data": {{
-    "kb_article_id": "...",
-    "kb_article_title": "...",
-    "service": "...",
-    "category": "...",
-    "priority": "...",
-    "estimated_resolution_time": "...",
-    "resolution_steps": "...",
-    "workaround": "...",
-    "troubleshooting_summary": "Resumo de tudo que tentamos no chat...",
-    "escalation_required": true,
-    "escalation_criteria": "..."
-  }}
-}}
-```
+{schema_registro}
 
 ATENÇÃO: Se o usuário ainda NÃO confirmou que deseja abrir o chamado, você É OBRIGADO a usar "action": "reply" e perguntar se ele quer.
 """
