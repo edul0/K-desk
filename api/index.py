@@ -185,18 +185,20 @@ BASE DE CONHECIMENTO DISPONÍVEL (JSON):
 {json.dumps(kb_data, ensure_ascii=False)}
 
 REGRAS DE CONDUTA:
-1. NUNCA registre o chamado de imediato. Sua primeira ação deve ser SEMPRE investigar o problema.
-2. Faça perguntas claras e concisas para entender os detalhes do problema. Baseie suas perguntas no campo 'diagnostic_questions' do artigo mais relevante. (ex: "Aparece alguma mensagem de erro?", "Isso afeta outros usuários?").
-3. Após recolher as informações essenciais, você DEVE oferecer de 1 a 2 dicas rápidas de contorno (baseado no 'workaround' do artigo). Pergunte se as dicas ajudaram ou se o usuário deseja registrar um chamado.
-4. Enquanto estiver investigando o problema ou dando dicas, responda APENAS com texto normal. NUNCA inclua o bloco JSON nessa fase.
+1. NUNCA registre o chamado de imediato. Seu objetivo primário é atuar como suporte de Nível 1, ou seja, TENTAR RESOLVER o problema do usuário diretamente no chat.
+2. Converse com o usuário. Faça perguntas investigativas (baseadas no artigo) para isolar o problema. Aguarde a resposta do usuário.
+3. Sugira passos práticos de solução que o usuário possa realizar no momento (ex: limpar cache, reiniciar, checar cabos). Peça para ele testar e te avisar se funcionou.
+4. Se ele testar e não funcionar, ou se a natureza do problema claramente exigir intervenção de Nível 2 (ex: queda de servidor), pergunte se ele deseja que você abra um chamado.
+5. Enquanto estiver na fase de investigação e tentativa de solução, responda APENAS com texto normal. NUNCA inclua o bloco JSON nessa fase.
 
 REGRA DE ABERTURA DO CHAMADO (JSON):
-5. Somente registre o chamado SE E QUANDO o usuário confirmar que a dica não funcionou OU pedir com todas as letras para abrir o chamado/ticket.
-6. No momento exato em que for registrar o chamado, você NÃO deve responder com texto normal. Responda APENAS E EXATAMENTE com o bloco JSON abaixo:
+6. Somente registre o chamado (emitindo o JSON) SE E QUANDO as tentativas de solução no chat falharem E o usuário concordar em abrir o chamado.
+7. No bloco JSON, você deve preencher o campo 'troubleshooting_summary' com um resumo detalhado de TUDO o que foi relatado pelo usuário e TUDO o que você sugeriu/tentou resolver no chat.
+8. No momento exato em que for registrar o chamado, responda APENAS E EXATAMENTE com o bloco JSON abaixo:
 ```json
-{{
+{
   "action": "register_ticket",
-  "ticket_data": {{
+  "ticket_data": {
     "kb_article_id": "...",
     "kb_article_title": "...",
     "service": "...",
@@ -205,14 +207,16 @@ REGRA DE ABERTURA DO CHAMADO (JSON):
     "estimated_resolution_time": "...",
     "resolution_steps": "...",
     "workaround": "...",
+    "troubleshooting_summary": "...",
     "escalation_required": true/false,
     "escalation_criteria": "..."
-  }}
-}}
+  }
+}
 ```
 """
         chat_context = data.get("chat_context") or []
-        context_text = "\n".join(str(x) for x in chat_context[-12:])
+        # Aumentar contexto para capturar todo o troubleshooting
+        context_text = "\n".join(str(x) for x in chat_context[-30:])
         prompt = f"Contexto da Conversa:\n{context_text}\n\nMensagem Atual do Usuário (descrição do payload): {description}"
 
         ai_response = gemini_autonomous_agent(prompt, system_instruction=system_prompt)
@@ -230,10 +234,18 @@ REGRA DE ABERTURA DO CHAMADO (JSON):
                         try:
                             # Sanitização para evitar TypeError/NotNullViolation se o Gemini retornar null
                             safe_str = lambda x: str(x) if x is not None else ""
+                            
+                            # Combina a descrição original com o resumo do troubleshooting e o histórico completo
+                            final_description = (
+                                f"Relato Inicial: {safe_str(description)}\n\n"
+                                f"Resumo do Troubleshooting (IA): {safe_str(t_data.get('troubleshooting_summary'))}\n\n"
+                                f"Histórico Completo do Chat:\n{safe_str(context_text)}"
+                            )
+
                             ticket_id = append_ticket(
                                 requester_name=safe_str(requester_name),
                                 requester_email=safe_str(requester_email),
-                                description=safe_str(description) + "\n\nHistórico:\n" + safe_str(context_text),
+                                description=final_description,
                                 kb_article_id=safe_str(t_data.get("kb_article_id")),
                                 service=safe_str(t_data.get("service")),
                                 category=safe_str(t_data.get("category")),
