@@ -180,9 +180,12 @@ def chat_proxy():
         chat_context = data.get("chat_context") or []
         context_text = "\n".join(str(x) for x in chat_context[-30:])
 
-        # O contexto começa com 2 mensagens (a saudação do bot e o 1º relato do usuário).
-        # Para ser o Passo 4, precisamos de pelo menos 4 mensagens (Bot -> Usuário -> Bot responde -> Usuário confirma).
-        is_step_4 = len(chat_context) >= 4 and any(word in description.lower() for word in ['sim', 'pode', 'abre', 'quero', 'ticket', 'chamado'])
+        # Conta quantas interações o usuário já teve
+        user_msg_count = sum(1 for msg in chat_context if "Usuário:" in str(msg))
+        
+        # Para ser o Passo 4, o usuário precisa ter tentado conversar pelo menos 3 vezes (relato + 2 respostas)
+        # E a última mensagem deve conter uma confirmação.
+        is_step_4 = user_msg_count >= 3 and any(word in description.lower() for word in ['sim', 'pode', 'abre', 'quero', 'ticket', 'chamado'])
         if not is_step_4:
             schema_registro = "AVISO: A ABERTURA DE CHAMADO ESTÁ BLOQUEADA NA FASE DE INVESTIGAÇÃO. Use action: reply."
         else:
@@ -327,11 +330,12 @@ ATENÇÃO: Se o usuário ainda NÃO confirmou que deseja abrir o chamado, você 
                             "escalation_criteria": t_data.get("escalation_criteria", ""),
                             "resolution_steps": t_data.get("resolution_steps", ""),
                             "workaround": t_data.get("workaround", ""),
+                            "troubleshooting_summary": t_data.get("troubleshooting_summary", ""),
                             "ai_message": "Tudo certo! Acabei de registrar o seu chamado com os detalhes que você me passou. Posso ajudar com mais alguma coisa?"
                         }), 200
-                except Exception as e:
-                    app.logger.error(f"Erro ao interpretar JSON autônomo do Gemini: {e}")
-                    pass
+            except Exception as e:
+                app.logger.error(f"Erro ao interpretar JSON autônomo do Gemini: {e}")
+                pass
             
             # Se não for JSON ou o parser falhar, assume que é uma resposta em texto livre,
             # limpa qualquer lixo de formatação (```json ou ```)

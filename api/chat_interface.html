@@ -1078,6 +1078,7 @@
         <div class="ticket-field"><div class="ticket-field-label">Prazo estimado</div><div class="ticket-field-value" id="t-eta">—</div></div>
         <div class="ticket-field full"><div class="ticket-field-label">Artigo de referência</div><div class="ticket-field-value" id="t-article">—</div></div>
         <div class="ticket-field full"><div class="ticket-field-label">Próximos passos</div><div class="ticket-field-value" id="t-steps">—</div></div>
+        <div class="ticket-field full" id="t-troubleshoot-block" style="display:none"><div class="ticket-field-label">Resumo do Atendimento via Chat</div><div class="ticket-field-value" id="t-troubleshoot" style="white-space: pre-wrap;">—</div></div>
         <div class="ticket-field full" id="t-workaround-block" style="display:none"><div class="ticket-field-label">Contorno disponível</div><div class="ticket-field-value" id="t-workaround">—</div></div>
       </div>
       <div class="escalation-alert" id="t-escalation" style="display:none">
@@ -1278,6 +1279,7 @@
     }
 
     if (t.workaround) { set('t-workaround', t.workaround); document.getElementById('t-workaround-block').style.display='flex'; }
+    if (t.troubleshooting_summary) { set('t-troubleshoot', t.troubleshooting_summary); document.getElementById('t-troubleshoot-block').style.display='flex'; }
     if (t.escalation_required) document.getElementById('t-escalation').style.display='flex';
 
     showScreen('screen-ticket');
