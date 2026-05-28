@@ -42,7 +42,7 @@ def gemini_autonomous_agent(prompt: str, system_instruction: str = "") -> str | 
             ]
         }
         if system_instruction:
-            payload["system_instruction"] = {
+            payload["systemInstruction"] = {
                 "parts": [{"text": system_instruction}]
             }
         
