@@ -187,9 +187,9 @@ def chat_proxy():
         # E a última mensagem deve conter uma confirmação.
         is_step_4 = user_msg_count >= 3 and any(word in description.lower() for word in ['sim', 'pode', 'abre', 'quero', 'ticket', 'chamado'])
         if not is_step_4:
-            system_prompt = f"""Você é um agente de suporte de TI (Nível 1).
+            system_prompt = f"""Você é um agente de suporte de TI (Nível 1) extremamente rigoroso.
 Seu foco PRINCIPAL E ÚNICO no momento é tentar resolver o problema do usuário AQUI NO CHAT.
-A abertura de chamados (tickets) está BLOQUEADA neste estágio. Você deve investigar o problema e dar dicas de solução.
+A abertura de chamados (tickets) está BLOQUEADA. É PROIBIDO mencionar que você vai abrir um chamado ou transferir para a equipe técnica. Você DEVE investigar o problema e dar dicas de solução.
 
 BASE DE CONHECIMENTO DISPONÍVEL (JSON):
 {json.dumps(kb_data, ensure_ascii=False)}
@@ -198,6 +198,8 @@ FLUXO OBRIGATÓRIO:
 1. Faça perguntas de diagnóstico para entender o problema (se não estiver claro).
 2. Sugira UMA ação prática da base de conhecimento (ex: "Limpe o cache"). Peça para o usuário testar e aguarde.
 3. Se a dica anterior não resolveu, tente outra sugestão da base.
+
+ATENÇÃO: Nunca mencione "abrir chamado", "equipe técnica" ou "ticket" neste momento. Seja prestativo e resolva pelo chat.
 
 COMO RESPONDER:
 Você DEVE SEMPRE responder EXATAMENTE E APENAS com um bloco JSON. Não escreva texto solto.
@@ -276,8 +278,7 @@ Você DEVE SEMPRE responder EXATAMENTE E APENAS com um bloco JSON. Não escreva 
                         if not is_step_4:
                             # BLOQUEIO FORÇADO VIA PYTHON
                             # Se a IA tentou registrar o chamado antes da hora, interceptamos
-                            # e substituímos a mensagem dela por uma pergunta forçada.
-                            fallback_msg = "Para podermos registrar esse chamado com as informações corretas, preciso que você me confirme: as dicas de solução rápida não resolveram o seu problema? Quer que eu siga com a abertura do ticket?"
+                            fallback_msg = "Ainda não podemos abrir um chamado. Como manda o nosso protocolo de TI, precisamos tentar resolver o problema por aqui primeiro. Qual é o erro exato que aparece para você? Já tentou reiniciar o equipamento?"
                             return jsonify({
                                 "status": "need_more_info",
                                 "ai_message": fallback_msg,
