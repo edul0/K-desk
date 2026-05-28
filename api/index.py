@@ -242,13 +242,25 @@ ATENÇÃO: Se o usuário ainda NÃO confirmou que deseja abrir o chamado, você 
         ai_response = gemini_autonomous_agent(prompt, system_instruction=system_prompt)
         
         if ai_response:
-            if "```json" in ai_response and '"action":' in ai_response:
-                try:
-                    start = ai_response.find("```json") + 7
-                    end = ai_response.find("```", start)
-                    json_str = ai_response[start:end].strip()
-                    ticket_req = json.loads(json_str)
-                    
+            # Tentar extrair o JSON de forma mais robusta, mesmo que não tenha a tag markdown 'json'
+            json_str = ""
+            if "```" in ai_response:
+                start_idx = ai_response.find("```")
+                # Se for ```json, pegar a partir daí
+                if ai_response.startswith("```json", start_idx):
+                    start_idx += 7
+                else:
+                    start_idx += 3
+                end_idx = ai_response.find("```", start_idx)
+                if end_idx != -1:
+                    json_str = ai_response[start_idx:end_idx].strip()
+            else:
+                json_str = ai_response.strip()
+
+            try:
+                ticket_req = json.loads(json_str)
+                
+                if isinstance(ticket_req, dict):
                     if ticket_req.get("action") == "reply":
                         return jsonify({
                             "status": "need_more_info",
