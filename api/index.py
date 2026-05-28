@@ -187,14 +187,44 @@ def chat_proxy():
         # E a última mensagem deve conter uma confirmação.
         is_step_4 = user_msg_count >= 3 and any(word in description.lower() for word in ['sim', 'pode', 'abre', 'quero', 'ticket', 'chamado'])
         if not is_step_4:
-            schema_registro = "AVISO: A ABERTURA DE CHAMADO ESTÁ BLOQUEADA NA FASE DE INVESTIGAÇÃO. Use action: reply."
-        else:
-            schema_registro = """Se o usuário AUTORIZOU CLARAMENTE a abertura do chamado (Passo 4):
+            system_prompt = f"""Você é um agente de suporte de TI (Nível 1).
+Seu foco PRINCIPAL E ÚNICO no momento é tentar resolver o problema do usuário AQUI NO CHAT.
+A abertura de chamados (tickets) está BLOQUEADA neste estágio. Você deve investigar o problema e dar dicas de solução.
+
+BASE DE CONHECIMENTO DISPONÍVEL (JSON):
+{json.dumps(kb_data, ensure_ascii=False)}
+
+FLUXO OBRIGATÓRIO:
+1. Faça perguntas de diagnóstico para entender o problema (se não estiver claro).
+2. Sugira UMA ação prática da base de conhecimento (ex: "Limpe o cache"). Peça para o usuário testar e aguarde.
+3. Se a dica anterior não resolveu, tente outra sugestão da base.
+
+COMO RESPONDER:
+Você DEVE SEMPRE responder EXATAMENTE E APENAS com um bloco JSON. Não escreva texto solto.
+
 ```json
-{
+{{
+  "thought": "O usuário relatou X. Vou sugerir Y e perguntar se resolveu.",
+  "action": "reply",
+  "message": "Sua pergunta ou dica de solução para o usuário"
+}}
+```
+"""
+        else:
+            system_prompt = f"""Você é um agente de suporte de TI. O usuário já passou pela triagem e AGORA autorizou a abertura do chamado.
+Seu objetivo NESTE MOMENTO é registrar o ticket com os dados do problema.
+
+BASE DE CONHECIMENTO DISPONÍVEL (JSON):
+{json.dumps(kb_data, ensure_ascii=False)}
+
+COMO RESPONDER:
+Você DEVE SEMPRE responder EXATAMENTE E APENAS com um bloco JSON. Não escreva texto solto.
+
+```json
+{{
   "thought": "O usuário testou as dicas e não funcionou, e ele aceitou abrir o chamado. Vou registrar o ticket.",
   "action": "register_ticket",
-  "ticket_data": {
+  "ticket_data": {{
     "kb_article_id": "...",
     "kb_article_title": "...",
     "service": "...",
@@ -203,41 +233,12 @@ def chat_proxy():
     "estimated_resolution_time": "...",
     "resolution_steps": "...",
     "workaround": "...",
-    "troubleshooting_summary": "Resumo de tudo que tentamos no chat...",
+    "troubleshooting_summary": "Resumo detalhado de tudo que foi discutido e tentado no chat...",
     "escalation_required": true,
     "escalation_criteria": "..."
-  }
-}
-```"""
-
-        system_prompt = f"""Você é um agente de suporte de TI (Nível 1).
-Seu foco PRINCIPAL é tentar resolver o problema do usuário AQUI NO CHAT.
-Abrir um chamado (ticket) é o ÚLTIMO RECURSO, e NUNCA deve ser a sua primeira resposta.
-
-BASE DE CONHECIMENTO DISPONÍVEL (JSON):
-{json.dumps(kb_data, ensure_ascii=False)}
-
-FLUXO OBRIGATÓRIO (Siga exatamente esta ordem):
-PASSO 1: Faça perguntas de diagnóstico curtas para entender o problema (se não estiver claro).
-PASSO 2: Sugira UMA ação prática da base de conhecimento (ex: "Limpe o cache"). Peça para o usuário testar e aguarde.
-PASSO 3: Se não resolver, tente outra sugestão, ou pergunte abertamente: "Você quer que eu abra um chamado para a equipe técnica?".
-PASSO 4: SOMENTE se o usuário disser claramente "sim", "pode abrir", "quero", ou exigir o chamado, você avança para o registro.
-
-COMO RESPONDER:
-Você DEVE SEMPRE responder EXATAMENTE E APENAS com um bloco JSON. Não escreva texto solto.
-
-Se você está nos Passos 1, 2 ou 3 (Investigando e perguntando):
-```json
-{{
-  "thought": "O usuário relatou X. Vou sugerir Y e perguntar se resolveu.",
-  "action": "reply",
-  "message": "Sua pergunta ou dica de solução para o usuário"
+  }}
 }}
 ```
-
-{schema_registro}
-
-ATENÇÃO: Se o usuário ainda NÃO confirmou que deseja abrir o chamado, você É OBRIGADO a usar "action": "reply" e perguntar se ele quer.
 """
 
         prompt = f"Contexto da Conversa:\n{context_text}\n\nMensagem Atual do Usuário: {description}"
