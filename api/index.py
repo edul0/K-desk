@@ -179,12 +179,12 @@ def chat_proxy():
         
         chat_context = data.get("chat_context") or []
         context_text = "\n".join(str(x) for x in chat_context[-30:])
-        
-        # Check if the user authorized ticket creation
-        is_step_4 = len(chat_context) >= 2 and any(word in description.lower() for word in ['sim', 'pode', 'abre', 'quero', 'ticket', 'chamado'])
-        
+
+        # O contexto começa com 2 mensagens (a saudação do bot e o 1º relato do usuário).
+        # Para ser o Passo 4, precisamos de pelo menos 4 mensagens (Bot -> Usuário -> Bot responde -> Usuário confirma).
+        is_step_4 = len(chat_context) >= 4 and any(word in description.lower() for word in ['sim', 'pode', 'abre', 'quero', 'ticket', 'chamado'])
         if not is_step_4:
-            schema_registro = "AVISO: VOCÊ ESTÁ NA FASE DE INVESTIGAÇÃO. A ABERTURA DE CHAMADO ESTÁ BLOQUEADA."
+            schema_registro = "AVISO: A ABERTURA DE CHAMADO ESTÁ BLOQUEADA NA FASE DE INVESTIGAÇÃO. Use action: reply."
         else:
             schema_registro = """Se o usuário AUTORIZOU CLARAMENTE a abertura do chamado (Passo 4):
 ```json
@@ -269,6 +269,14 @@ ATENÇÃO: Se o usuário ainda NÃO confirmou que deseja abrir o chamado, você 
                         }), 200
 
                     if ticket_req.get("action") in ["register_ticket", "register"]:
+                        if not is_step_4:
+                            # BLOQUEIO FORÇADO VIA PYTHON
+                            return jsonify({
+                                "status": "need_more_info",
+                                "ai_message": ticket_req.get("thought", "Para podermos registrar esse chamado, você confirma a abertura?"),
+                                "is_greeting": True
+                            }), 200
+                            
                         t_data = ticket_req.get("ticket_data", {})
                         try:
                             # Sanitização para evitar TypeError/NotNullViolation se o Gemini retornar null
