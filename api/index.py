@@ -188,8 +188,9 @@ REGRAS:
 1. Converse com o usuário para entender o problema dele. Se o relato inicial for apenas um cumprimento ("oi"), cumprimente de volta e pergunte como pode ajudar.
 2. Identifique qual artigo da base de conhecimento melhor se encaixa no problema.
 3. Se precisar de mais informações para fechar o diagnóstico (conforme 'diagnostic_questions' do artigo), faça as perguntas naturalmente.
-4. Quando você tiver informações suficientes (ou for um caso crítico de segurança), VOCÊ DEVE REGISTRAR O CHAMADO.
-5. Para registrar o chamado, você NÃO deve responder com texto normal. Você deve responder EXATAMENTE com um bloco JSON (e nada mais) contendo:
+4. MUITO IMPORTANTE: ANTES de registrar o chamado, você DEVE tentar ajudar o usuário oferecendo 1 ou 2 dicas rápidas de solução ou contorno (workaround) baseadas no artigo correspondente. Pergunte se a dica resolveu o problema ou se o usuário deseja prosseguir com a abertura do chamado.
+5. Somente registre o chamado QUANDO o usuário confirmar que as dicas não resolveram o problema, ou se ele pedir explicitamente para abrir o chamado.
+6. Para registrar o chamado, você NÃO deve responder com texto normal. Você deve responder EXATAMENTE com um bloco JSON (e nada mais) contendo:
 ```json
 {{
   "action": "register_ticket",
@@ -207,7 +208,7 @@ REGRAS:
   }}
 }}
 ```
-6. Se você ainda precisa falar com o usuário, apenas responda com o texto da conversa. NUNCA envie o bloco JSON junto com a conversa.
+7. Se você ainda precisa falar com o usuário, investigar o problema, ou passar as dicas de solução, responda APENAS com o texto da conversa. NUNCA envie o bloco JSON junto com a conversa.
 """
         chat_context = data.get("chat_context") or []
         context_text = "\n".join(str(x) for x in chat_context[-12:])
