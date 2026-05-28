@@ -187,14 +187,21 @@ BASE DE CONHECIMENTO DISPONÍVEL (JSON):
 FLUXO OBRIGATÓRIO:
 PASSO 1: Entenda o problema. Se o usuário mandar apenas uma frase, faça perguntas de diagnóstico curtas. Aguarde a resposta.
 PASSO 2: Sugira UMA ação prática que o usuário possa testar na hora (ex: "Limpe o cache", "Tente conectar no Wi-Fi"). Aguarde a resposta.
-PASSO 3: Se não resolver, tente outra sugestão do artigo, ou pergunte: "Quer que eu abra um chamado para o Nível 2?".
+PASSO 3: Se não resolver, tente outra sugestão do artigo, ou pergunte se o usuário quer abrir chamado.
 PASSO 4: Somente se o usuário pedir para abrir o chamado (ou confirmar que nada funcionou), você registra o ticket.
 
 COMO RESPONDER:
-- Se você está nos Passos 1, 2 ou 3: RESPONDA APENAS EM TEXTO NORMAL. Jamais mencione ou use a palavra JSON. Converse naturalmente.
-- Se você chegou no Passo 4 (registrar ticket): RESPONDA EXATAMENTE E APENAS COM O BLOCO JSON ABAIXO.
+Você DEVE SEMPRE responder EXATAMENTE E APENAS com um bloco JSON. Não escreva texto fora do JSON.
 
-FORMATO DO JSON (Use SOMENTE no Passo 4):
+Se você está nos Passos 1, 2 ou 3 (Conversando e Investigando):
+```json
+{{
+  "action": "reply",
+  "message": "Sua pergunta ou dica de solução para o usuário"
+}}
+```
+
+Se você chegou no Passo 4 (Registrar Chamado):
 ```json
 {{
   "action": "register_ticket",
@@ -229,6 +236,13 @@ FORMATO DO JSON (Use SOMENTE no Passo 4):
                     json_str = ai_response[start:end].strip()
                     ticket_req = json.loads(json_str)
                     
+                    if ticket_req.get("action") == "reply":
+                        return jsonify({
+                            "status": "need_more_info",
+                            "ai_message": ticket_req.get("message", "Preciso de mais informações."),
+                            "is_greeting": True
+                        }), 200
+
                     if ticket_req.get("action") in ["register_ticket", "register"]:
                         t_data = ticket_req.get("ticket_data", {})
                         try:
