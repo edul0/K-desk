@@ -180,14 +180,37 @@ def chat_proxy():
         chat_context = data.get("chat_context") or []
         context_text = "\n".join(str(x) for x in chat_context[-30:])
 
-        if len(chat_context) < 2:
-            registro_json_schema = "AINDA NÃO É PERMITIDO ABRIR O CHAMADO NESTA ETAPA. Você deve obrigatoriamente investigar o problema primeiro, respondendo com 'action': 'reply'."
-        else:
-            registro_json_schema = """Se o usuário pedir para abrir o chamado ou confirmar que a dica falhou (PASSO 4), use:
+        system_prompt = f"""Você é um agente de suporte de TI (Nível 1).
+Seu foco PRINCIPAL é tentar resolver o problema do usuário AQUI NO CHAT.
+Abrir um chamado (ticket) é o ÚLTIMO RECURSO, e NUNCA deve ser a sua primeira resposta.
+
+BASE DE CONHECIMENTO DISPONÍVEL (JSON):
+{json.dumps(kb_data, ensure_ascii=False)}
+
+FLUXO OBRIGATÓRIO (Siga exatamente esta ordem):
+PASSO 1: Faça perguntas de diagnóstico curtas para entender o problema (se não estiver claro).
+PASSO 2: Sugira UMA ação prática da base de conhecimento (ex: "Limpe o cache"). Peça para o usuário testar e aguarde.
+PASSO 3: Se não resolver, tente outra sugestão, ou pergunte abertamente: "Você quer que eu abra um chamado para a equipe técnica?".
+PASSO 4: SOMENTE se o usuário disser claramente "sim", "pode abrir", "quero", ou exigir o chamado, você avança para o registro.
+
+COMO RESPONDER:
+Você DEVE SEMPRE responder EXATAMENTE E APENAS com um bloco JSON. Não escreva texto solto.
+
+Se você está nos Passos 1, 2 ou 3 (Investigando e perguntando):
 ```json
-{
+{{
+  "thought": "O usuário relatou X. Vou sugerir Y e perguntar se resolveu.",
+  "action": "reply",
+  "message": "Sua pergunta ou dica de solução para o usuário"
+}}
+```
+
+Se o usuário AUTORIZOU CLARAMENTE a abertura do chamado (Passo 4):
+```json
+{{
+  "thought": "O usuário testou as dicas e não funcionou, e ele aceitou abrir o chamado. Vou registrar o ticket.",
   "action": "register_ticket",
-  "ticket_data": {
+  "ticket_data": {{
     "kb_article_id": "...",
     "kb_article_title": "...",
     "service": "...",
@@ -196,41 +219,17 @@ def chat_proxy():
     "estimated_resolution_time": "...",
     "resolution_steps": "...",
     "workaround": "...",
-    "troubleshooting_summary": "...",
-    "escalation_required": true/false,
+    "troubleshooting_summary": "Resumo de tudo que tentamos no chat...",
+    "escalation_required": true,
     "escalation_criteria": "..."
-  }
-}
-```"""
-
-        system_prompt = f"""Você é um agente de suporte de TI (Nível 1).
-Seu foco PRINCIPAL é tentar resolver o problema do usuário AQUI E AGORA NO CHAT.
-Abrir um chamado (ticket) é o ÚLTIMO RECURSO, e NUNCA deve ser a sua primeira resposta.
-
-BASE DE CONHECIMENTO DISPONÍVEL (JSON):
-{json.dumps(kb_data, ensure_ascii=False)}
-
-FLUXO OBRIGATÓRIO:
-PASSO 1: Entenda o problema. Se o usuário mandar apenas uma frase, faça perguntas de diagnóstico curtas. Aguarde a resposta.
-PASSO 2: Sugira UMA ação prática que o usuário possa testar na hora (ex: "Limpe o cache", "Tente conectar no Wi-Fi"). Aguarde a resposta.
-PASSO 3: Se não resolver, tente outra sugestão do artigo, ou pergunte se o usuário quer abrir chamado.
-PASSO 4: Somente se o usuário pedir para abrir o chamado (ou confirmar que nada funcionou), você registra o ticket.
-
-COMO RESPONDER:
-Você DEVE SEMPRE responder EXATAMENTE E APENAS com um bloco JSON. Não escreva texto fora do JSON.
-
-Se você está nos Passos 1, 2 ou 3 (Conversando e Investigando):
-```json
-{{
-  "action": "reply",
-  "message": "Sua pergunta ou dica de solução para o usuário"
+  }}
 }}
 ```
 
-{registro_json_schema}
+ATENÇÃO: Se o usuário ainda NÃO confirmou que deseja abrir o chamado, você É OBRIGADO a usar "action": "reply" e perguntar se ele quer.
 """
 
-        prompt = f"Contexto da Conversa:\n{context_text}\n\nMensagem Atual do Usuário (descrição do payload): {description}"
+        prompt = f"Contexto da Conversa:\n{context_text}\n\nMensagem Atual do Usuário: {description}"
 
         ai_response = gemini_autonomous_agent(prompt, system_instruction=system_prompt)
         
