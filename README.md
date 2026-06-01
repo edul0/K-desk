@@ -1,4 +1,4 @@
-﻿# K-desk
+﻿# K-desk COLLEGE PROJECT
 
 Agente inteligente de suporte de TI com triagem automática, classificação de prioridade e registro de tickets.
 
