@@ -1,4 +1,5 @@
-﻿# K-desk COLLEGE PROJECT
+﻿# K-desk COLLEGE PROJECT 
+ DROP DESK STYLE WITH AI
 
 Agente inteligente de suporte de TI com triagem automática, classificação de prioridade e registro de tickets.
 
