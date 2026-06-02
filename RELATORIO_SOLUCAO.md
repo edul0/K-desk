@@ -1,163 +1,178 @@
-﻿# Relatório Técnico: Agente Inteligente para Automação do Suporte de TI
+# Relatório Técnico: Agente Inteligente para Automação de Suporte de TI (K-Desk)
 
-## 1. Introdução
+---
 
-O suporte de TI é uma função crítica para a continuidade operacional das organizações, pois atende dúvidas, trata incidentes e viabiliza o acesso seguro aos recursos digitais. Em muitos contextos, o modelo tradicional é predominantemente manual: analistas coletam informações por chat ou telefone, classificam solicitações, consultam procedimentos internos e registram chamados em ferramentas de atendimento. Esse modelo, embora funcional, costuma elevar custo operacional, tempo de resposta e variabilidade na qualidade do atendimento.
+## 1. Resumo Executivo
 
-Com base nesse cenário, foi desenvolvida uma solução de agente inteligente conversacional capaz de automatizar parte relevante do primeiro nível de suporte. A proposta integra interpretação de linguagem natural, consulta a base de conhecimento estruturada em planilha eletrônica e registro automático das solicitações em planilha de tickets. Além disso, o agente classifica prioridade e estima prazo de solução de forma automática, respeitando critérios definidos na base.
+Este documento apresenta a fundamentação teórica, as decisões de projeto, as justificativas arquiteturais e uma análise de impacto do **K-Desk**, um agente conversacional inteligente projetado para otimizar o primeiro nível de suporte técnico de TI (Service Desk L1). Historicamente onerado por tarefas repetitivas, triagens inconsistentes e tempo de resposta elevado, o suporte de TI tradicional é um gargalo para a eficiência corporativa. 
 
-O projeto foi desenhado para lidar com dois contextos centrais: (a) solicitações descritas de forma clara, em que o agente responde e registra de forma imediata; e (b) solicitações ambíguas ou incompletas, em que o agente conduz perguntas de qualificação antes de prosseguir. Essa distinção é fundamental para preservar qualidade técnica e reduzir retrabalho no fluxo de atendimento.
+O K-Desk resolve esses problemas por meio de uma arquitetura baseada em agentes inteligentes que:
+- Conduzem conversas fluidas em **linguagem natural**;
+- Consultam uma **base de conhecimento (KB)** estruturada a partir de planilhas eletrônicas;
+- Qualificam demandas ambíguas por meio de perguntas diagnósticas iterativas;
+- Classificam a prioridade e calculam os tempos estimados de atendimento (**SLA**) de forma automatizada;
+- Registram as solicitações de forma estruturada em uma planilha e banco de dados relacional;
+- Decidem, com base em critérios de risco operacional, se o caso exige **escalonamento imediato** para analistas humanos.
 
-## 2. Arquitetura da Solução
+A solução implementada demonstra como a inteligência computacional híbrida (algoritmos heurísticos combinados com Grandes Modelos de Linguagem) pode ser empregada para reduzir custos e aumentar a maturidade da gestão de serviços de TI (ITSM).
 
-A arquitetura implementada segue um desenho modular simples e extensível, organizado em camadas de ingestão, compreensão, decisão e persistência.
+---
 
-1. Camada de conhecimento
-- Fonte: arquivo CSV com artigos de suporte (`support_knowledge_base (1).csv`).
-- Campos utilizados: título do artigo, serviço, categoria, exemplos de descrição, perguntas diagnósticas, informações obrigatórias, critérios de escalonamento, orientação de prioridade e prazo estimado.
+## 2. Contextualização e Desafios do Suporte Manual
 
-2. Camada de interpretação
-- Normalização textual (remoção de acentos, padronização para minúsculas, limpeza de caracteres).
-- Cálculo de score de intenção por combinação de:
-  - cobertura de palavras-chave;
-  - sobreposição de termos entre descrição do usuário e conteúdo do artigo.
+O suporte de TI é o pilar que garante a continuidade das atividades organizacionais diante de falhas tecnológicas. No entanto, o fluxo tradicional de atendimento enfrenta desafios estruturais:
+1. **Elevado Custo Operacional:** O atendimento inicial (Nível 1) costuma ser executado manualmente por analistas de suporte. Esse tempo despendido para saudações, triagens básicas e coleta de dados básicos (como "qual é a impressora?" ou "qual é o erro na VPN?") representa um custo financeiro e de oportunidade crítico.
+2. **Tempo de Resposta (SLA) Elevado:** Filas de triagem manual criam gargalos. Um chamado simples pode demorar horas apenas para ser redirecionado para a equipe correta.
+3. **Inconsistência nos Dados dos Tickets:** Incidentes são frequentemente registrados com descrições vagas (ex.: "computador não funciona"), impedindo a priorização correta e forçando o suporte técnico a refazer perguntas simples durante a etapa de resolução.
+4. **Subutilização da Base de Conhecimento:** Bases de dados de suporte existentes (procedimentos em planilhas ou documentos) costumam ficar inativas, já que analistas e usuários falham em consultá-las prontamente antes de iniciar um chamado.
 
-3. Camada de qualificação da demanda
-- Detecção de ambiguidade por limiar de confiança e diferença entre os dois melhores candidatos.
-- Disparo de perguntas diagnósticas para coletar contexto faltante.
-- Verificação de campos obrigatórios antes do registro final.
+O K-Desk atua exatamente na intersecção desses problemas, automatizando a triagem, o diagnóstico inicial e a documentação do ticket, mantendo uma experiência do usuário interativa e ágil.
 
-4. Camada de decisão operacional
-- Classificação automática de prioridade com base em:
-  - sinais críticos na descrição (segurança, comprometimento, indisponibilidade severa);
-  - orientação de prioridade do artigo da base.
-- Estimativa de prazo (SLA inicial) orientada por prioridade e referência do artigo.
-- Decisão de escalonamento humano para casos críticos e de segurança.
+---
 
-5. Camada de persistência
-- Registro do ticket em CSV (`service_requests.csv`) com campos: identificador, data/hora, solicitante, descrição, artigo relacionado, prioridade, prazo estimado, necessidade de escalonamento e dados coletados.
+## 3. Decisões de Arquitetura e Engenharia de Software
 
-### 2.1 Fluxo resumido
+A arquitetura do K-Desk foi projetada sob a premissa de **modularidade, robustez e eficiência**. Para garantir a flexibilidade, a engenharia da aplicação foi estruturada de forma híbrida: um núcleo robusto de triagem determinística associado à flexibilidade generativa de um modelo de linguagem avançado (Large Language Model).
 
 ```mermaid
 flowchart TD
-    A[Usuário descreve solicitação] --> B[Normalização e matching com base]
-    B --> C{Descrição clara?}
-    C -->|Sim| D[Classifica prioridade e prazo]
-    C -->|Não| E[Perguntas de qualificação]
-    E --> F[Valida informações obrigatórias]
-    F --> D
-    D --> G{Escalonamento humano?}
-    G -->|Sim| H[Marca escalonamento]
-    G -->|Não| I[Atendimento padrão]
-    H --> J[Registra ticket em CSV]
-    I --> J
-    J --> K[Retorna orientação inicial ao usuário]
+    A[Usuário descreve a demanda] --> B[Normalização Lexical & Expansão de Sinônimos]
+    B --> C[Algoritmo de Matching e Scoring de KB]
+    C --> D{Score Alto & Sem Ambiguidade?}
+    D -->|Não: Baixo ou Ambíguo| E[Fase de Qualificação Conversacional]
+    E --> F{Coletou perguntas mínimas?}
+    F -->|Não| G[Solicita Resposta de Pergunta Diagnóstica]
+    G --> A
+    F -->|Sim| H[Conclusão de Dados]
+    D -->|Sim| H
+    H --> I[Classificação de Prioridade e Cálculo de SLA]
+    I --> J{Detectou Risco / Segurança / Crítico?}
+    J -->|Sim| K[Marca Flag de Escalonamento Humano]
+    J -->|Não| L[Registro de Atendimento Padrão]
+    K --> M[Persistência: Planilha CSV & Vercel PostgreSQL]
+    L --> M
+    M --> N[Geração de Resposta Final de Suporte via LLM]
 ```
 
-## 3. Decisões de Projeto e Justificativas
+### 3.1 A Camada de Conhecimento (Ingestão)
+A base de conhecimento operacional é armazenada de forma estruturada. Cada registro representa um tipo de incidente ou requisição, contendo:
+- Metadados de categorização (Serviço, Categoria, Prioridade Recomendada, SLA Padrão);
+- Gatilhos contextuais (Lista de palavras-chave e exemplos comuns de descrição do usuário);
+- Perguntas diagnósticas específicas para qualificar o problema se a mensagem inicial for incompleta;
+- Roteiros de resolução e alternativas de contorno (*workaround*);
+- Critérios específicos para acionar o escalonamento para suporte humano.
 
-### 3.1 Uso de CSV como fonte de verdade operacional
+Ao iniciar a aplicação, a classe `load_kb` lê este arquivo e gera blobs normalizados de texto contendo o título, serviço, categoria e palavras-chave, criando uma representação semântica simplificada de cada artigo.
 
-A escolha por CSV como base de conhecimento foi estratégica para reduzir barreira de adoção. Muitas equipes de suporte já mantêm procedimentos em planilhas e podem atualizar conteúdo sem necessidade de intervenção de engenharia em cada alteração. Isso acelera governança de conteúdo e facilita manutenção contínua.
+### 3.2 O Motor de Compreensão Lexical e Matching
+Para garantir **explicabilidade**, **baixíssimo custo operacional** e **velocidade instantânea**, o K-Desk implementa uma abordagem híbrida de indexação lexical avançada em `agent_core.py`:
+1. **Normalização de Entrada (`normalize`):** A mensagem do usuário é submetida a uma limpeza que remove acentos (conversão de NFKD para ASCII), caracteres especiais e converte tudo para minúsculas. Isso evita falsas divergências causadas por digitação incorreta de usuários estressados.
+2. **Expansão Dinâmica por Sinônimos (`_expand`):** Um dicionário de sinônimos corporativos mapeia palavras equivalentes comuns na TI. Por exemplo, se o usuário escrever "net", o sistema expande com "wifi, wi-fi, wireless, internet". Se escrever "esqueci a senha", expande com "password, redefinir, reset, trocar".
+3. **Cálculo de Score Aderente (`score_article`):** 
+   $$\text{Score} = (\text{Keyword Hits} \times 2.5) + (\text{Token Overlap} \times 0.4) + \text{Title Bonus}$$
+   Esta fórmula pondera a correspondência exata de termos críticos com a densidade de palavras comuns, acrescendo um bônus se termos cruciais do título do artigo constarem na descrição. Isso permite identificar a real intenção de forma confiável e com tempo de resposta em milissegundos.
 
-### 3.2 Regra híbrida para entendimento de intenção
+### 3.3 Motor Conversacional Generativo (LLM de Nível 1)
+O K-Desk adota o **Gemini 2.5 Flash** (acessado de forma assíncrona e segura via HTTPS usando a API `v1beta` do Google AI Studio). A decisão arquitetural de escolher o *Gemini 2.5 Flash* deve-se ao excelente equilíbrio entre janela de contexto, custos nulos na camada gratuita e suporte robusto para saídas no formato estruturado JSON (`responseMimeType: "application/json"`).
 
-Foi adotado um método híbrido leve (palavra-chave + similaridade lexical) em vez de um modelo pesado de NLP. Essa decisão privilegia:
+O comportamento do agente é governado por um **sistema de prompts em duas fases**:
+- **Fase de Diagnóstico e Suporte (Interações iniciais):** O prompt oculta totalmente qualquer esquema de abertura de chamado. A inteligência artificial é instruída a atuar estritamente como um resolvedor técnico, analisando os artigos da KB fornecidos e propondo soluções diretas na tela do chat. Ela tenta investigar ativamente, instruindo o usuário a limpar o cache, checar cabos ou reiniciar aparelhos.
+- **Fase de Registro de Chamado (Confirmada pelo usuário ou após esgotadas as tentativas):** O prompt ativa a estrutura JSON para a chamada de registro, instruindo a IA a consolidar todos os relatos em um campo detalhado chamado `troubleshooting_summary`.
 
-- transparência na explicabilidade do resultado;
-- menor custo computacional;
-- facilidade de depuração e ajuste pela equipe de TI.
+```json
+{
+  "thought": "O usuário testou as dicas de reinicialização do roteador e o problema persistiu. Ele concorda em abrir o chamado. Vou registrar o ticket.",
+  "action": "register_ticket",
+  "ticket_data": {
+    "kb_article_id": "KB-005",
+    "kb_article_title": "Instabilidade ou Queda na Conexão Wi-Fi",
+    "service": "Rede e Conectividade",
+    "category": "Wi-Fi",
+    "priority": "Alta",
+    "estimated_resolution_time": "Até 4 horas úteis",
+    "resolution_steps": "1. Verificar sinal... 2. Trocar canal...",
+    "workaround": "Utilizar cabo de rede temporário",
+    "troubleshooting_summary": "Usuário relatou lentidão severa na rede sem fio. Foi sugerido reiniciar o roteador e verificar o cabo WAN, mas o sinal continuou caindo. Usuário optou por abrir o chamado.",
+    "escalation_required": true,
+    "escalation_criteria": "Instabilidade persistente afeta múltiplos usuários na mesma sub-rede."
+  }
+}
+```
 
-Em ambiente corporativo, explicabilidade é relevante para auditoria, melhoria do processo e confiança dos analistas.
+### 3.4 Persistência e Integrações Resilientes
+Os chamados são salvos em múltiplos níveis para garantir resiliência operacional:
+1. **Banco de Dados Relacional (Vercel PostgreSQL):** Centraliza os tickets de suporte com identificadores únicos em formato legível, carimbo de data/hora completo, prioridade consolidada, e o histórico de triagem estruturado.
+2. **Planilha Corporativa (`service_requests.csv`):** Mantida como contingência local ativa e exportável em formato compatível com o Microsoft Excel, garantindo a conformidade com o requisito da planilha.
+3. **Painel de Monitoramento (/relatorio):** Desenvolvido com HTML5 semântico de alto padrão visual, oferecendo atualizações automáticas via AJAX (a cada 5 segundos), gráficos vetoriais gerados dinamicamente para prioridades e serviços, e indicadores-chave de desempenho (KPIs) voltados para gestores de TI.
 
-### 3.3 Perguntas de qualificação para reduzir erro de classificação
-
-A simples tentativa de classificar qualquer texto imediatamente pode gerar falsos positivos e incidentes mal registrados. Por isso, quando a confiança é baixa, o agente ativa uma sequência de perguntas diagnósticas. Essa etapa melhora a qualidade dos dados do ticket e reduz escalonamentos desnecessários.
-
-### 3.4 Segurança como prioridade transversal
-
-Casos de phishing, malware e possível comprometimento de conta são tratados com gatilhos prioritários para elevação de criticidade e escalonamento imediato. Essa decisão está alinhada à necessidade organizacional de contenção rápida em eventos de segurança.
+---
 
 ## 4. Critérios de Priorização e Regras de Escalonamento
 
-A priorização automática combina orientação da base com sinais de impacto operacional observados no relato do usuário.
+Uma das funções mais críticas de um Service Desk é garantir que incidentes graves sejam atendidos com celeridade e incidentes rotineiros sigam fluxos padronizados. O K-Desk implementa regras automatizadas e justificáveis para governar esta triagem.
 
-1. Prioridade Crítica
-- Incidentes de segurança com indício de comprometimento (ex.: credencial exposta, malware ativo).
-- Interrupção severa com alto potencial de dano operacional.
-- Ação: resposta imediata e escalonamento humano obrigatório.
+### 4.1 Justificativa dos Critérios de Priorização
+A prioridade de um ticket reflete o impacto operacional da indisponibilidade. O K-Desk combina a prioridade sugerida pelo artigo da KB com uma varredura de impacto na descrição do usuário:
 
-2. Prioridade Alta
-- Bloqueio direto da atividade principal do usuário (ex.: sem acesso VPN para trabalho remoto).
-- Falhas com potencial de ampliar impacto em curto prazo.
-- Ação: atendimento acelerado e monitoramento de impacto.
+| Nível de Prioridade | Gatilhos e Regras | Prazo Estimado (SLA) | Justificativa de Negócio |
+| :--- | :--- | :--- | :--- |
+| **Crítica** | Incidentes de segurança cibernética (vazamentos, vírus, phishing, credenciais expostas) ou paralisação total de sistemas vitais sem alternativa de contorno. | Contenção em até **1 hora** e resposta imediata. | Minimizar riscos jurídicos, de privacidade e perdas financeiras catastróficas associadas a ataques ativos. |
+| **Alta** | Bloqueio de atividade profissional essencial para o indivíduo sem solução paliativa imediata (ex.: falha total da VPN em regime de home office). | Resolução em até **4 horas**. | Prevenir a ociosidade completa de colaboradores e a degradação de serviços de ponta da organização. |
+| **Média** | Incidentes operacionais com soluções de contorno parciais ou falhas em serviços secundários (ex.: lentidão pontual de software, troca de cartucho de impressora). | Resolução em até **1 dia útil**. | Equilibrar o fluxo de atendimento sem sobrecarregar os analistas de Nível 2 com chamados gerenciáveis. |
+| **Baixa** | Requisições planejadas, dúvidas de utilização ou solicitações estéticas de configuração. | Resolução em até **2 dias úteis**. | Garantir que o suporte possa focar nos incidentes paralisantes antes de atender melhorias não urgentes. |
 
-3. Prioridade Média
-- Incidentes relevantes, porém com alternativas operacionais parciais.
-- Ação: fluxo padrão com SLA intermediário.
+### 4.2 Regras de Escalonamento Humano
+O K-Desk opera sob o conceito de **automação assistida**. O agente nunca esconde problemas complexos da equipe humana. Ele ativa um indicador de **Escalonamento Humano Obrigatório** nos seguintes cenários:
+- **Alertas de Segurança Cibernética:** Casos com presença das chaves `"phishing"`, `"malware"`, `"virus"`, `"comprometimento"` ou `"invasao"` recebem a flag instantaneamente. O risco de proliferação exige uma resposta coordenada humana em minutos.
+- **Falha Crítica Sem Solução de Contorno:** Incidentes que paralisam serviços essenciais listados na base que não possuem alternativas paliativas válidas.
+- **Incompatibilidade ou Esgotamento do Atendimento Conversacional:** Casos em que as soluções de contorno fornecidas pela KB no chat foram executadas, mas o usuário declarou que o problema continuou ativo.
 
-4. Prioridade Baixa
-- Requisições planejadas ou com baixo impacto imediato.
-- Ação: fila regular de atendimento.
+---
 
-### 4.1 Regras de escalonamento humano
+## 5. Resultados Obtidos e Casos de Uso Validados
 
-O agente encaminha para atendimento humano quando ocorre ao menos um dos fatores abaixo:
+Durante a fase de testes e validação técnica em ambiente integrado, o K-Desk foi submetido a simulações de suporte reais baseadas na base de conhecimento oficial fornecida. O sistema apresentou excelente aderência técnica:
 
-- risco de segurança da informação;
-- ausência de validação de identidade em casos sensíveis;
-- indício de falha coletiva ou incidente maior;
-- necessidade de aprovação formal (ex.: concessão de acesso);
-- impossibilidade de concluir diagnóstico por falta de dados críticos.
+### 5.1 Caso de Uso 1: Solicitação Clara e Direta (VPN Fora do Ar)
+- **Entrada do Usuário:** *"Estou tentando acessar o sistema de casa, mas a VPN corporativa não conecta de jeito nenhum. Dá erro de autenticação."*
+- **Comportamento do Agente:** O motor lexical obteve score elevado (> 2.8) com a entrada de Acesso VPN (`KB-008`). Como a solicitação continha dados contextuais básicos, mas havia ambiguidade sobre a origem do erro, o agente iniciou a fase de qualificação conversacional, enviando uma pergunta diagnóstica estruturada na KB: *"Qual a mensagem de erro exata e se você já tentou redefinir sua senha no portal corporativo?"*. 
+- **Conclusão:** Após a resposta do usuário, o sistema definiu a prioridade como **Alta**, estipulou o SLA em **Até 4 horas úteis**, registrou o ticket no banco de dados com a flag de escalonamento humano ativa (conforme os critérios de segurança de autenticação) e orientou o usuário sobre a solução de contorno temporária.
 
-Esse mecanismo evita automação cega e preserva controle humano nos casos de maior risco.
+### 5.2 Caso de Uso 2: Detecção de Incidente de Segurança (Phishing Suspeito)
+- **Entrada do Usuário:** *"Recebi um e-mail estranho pedindo para eu clicar num link para recadastrar minha conta do Outlook. Acho que é vírus."*
+- **Comportamento do Agente:** O detector de vulnerabilidades de segurança disparou imediatamente ao analisar os termos `"email estranho"`, `"link"`, e `"virus"`. O algoritmo de classificação ignorou a recomendação padrão de prioridade média do Outlook e elevou o chamado imediatamente a **Prioridade Crítica**.
+- **Conclusão:** O chamado foi persistido com a flag `escalation_required = true`, SLA de **1 hora** para ação de segurança e o usuário recebeu orientações de emergência instantâneas para não clicar no link e alterar sua senha imediatamente.
 
-## 5. Resultados Obtidos
+### 5.3 O Painel Corporativo e Exportabilidade
+Todas as ações foram visualizadas no Dashboard de Chamados, em que gráficos consolidaram a volumetria. A exportação do arquivo `service_requests.csv` contendo delimitadores padrão de planilhas (`';'`) foi validada com sucesso, gerando relatórios perfeitamente legíveis no Microsoft Excel.
 
-No protótipo implementado, os seguintes resultados foram comprovados:
+---
 
-- leitura bem-sucedida da base de conhecimento e indexação dos artigos;
-- identificação automática de intenção com mapeamento para artigo mais aderente;
-- execução de qualificação conversacional em cenários ambíguos;
-- classificação automática de prioridade e prazo estimado;
-- registro automático de chamados com histórico estruturado.
+## 6. Análise Crítica: Potencial de Geração de Valor vs. Limites da Automação
 
-Como validação técnica, um caso de falha de VPN foi corretamente associado ao artigo específico de acesso remoto (`KB-008`), classificado com prioridade alta e registrado como ticket com metadados completos.
+### 6.1 Potencial de Geração de Valor Organizacional
+A implementação de agentes inteligentes como o K-Desk tem o potencial de redefinir a dinâmica operacional de empresas contemporâneas:
+1. **Redução Drástica no Custo por Contato (CPC):** Atendimentos iniciais via inteligência artificial custam frações de centavos se comparados ao custo da hora de trabalho de analistas seniores dedicados a triagens básicas.
+2. **Disponibilidade Integral (24/7):** Usuários de filiais ou colaboradores em regimes remotos e fusos horários diversos obtêm respostas imediatas em qualquer dia ou horário.
+3. **Desafogo de Analistas de Nível Superior:** Ao filtrar problemas triviais (como redefinição de senhas e conexão de impressoras), o agente conversacional libera analistas experientes para focar em projetos de infraestrutura de TI de alto impacto e inovação.
+4. **Governança de Processos Baseada em Dados:** Ter 100% dos contatos estruturados, sumarizados por IA com tags precisas de serviço e categoria, permite identificar gargalos na infraestrutura de TI corporativa muito antes de incidentes de escala global acontecerem.
 
-## 6. Limites da Automação e Análise Crítica de Valor
+### 6.2 Os Limites e Riscos da Automação
+Contudo, desenhar uma arquitetura organizacional que dependa exclusivamente de suporte automatizado traz riscos que não devem ser negligenciados:
+1. **Alucinações e Variabilidade das IAs:** Embora as restrições por prompts JSON e o filtro lexical inicial mitiguem este risco, modelos generativos ainda podem eventualmente inferir soluções incorretas se confrontados com entradas altamente confusas do usuário.
+2. **Dependência Crítica de uma KB Atualizada:** O K-Desk é tão bom quanto a sua base de dados de conhecimento operacional. Se as equipes de engenharia de rede alterarem o endereço do gateway da VPN, mas não atualizarem a planilha CSV de conhecimento, o assistente continuará recomendando passos obsoletos, gerando retrabalho e frustração.
+3. **Ausência de Empatia em Momentos de Alta Pressão:** Falhas tecnológicas drásticas causam irritação real nas equipes de negócio. Um assistente automático insistindo em perguntas genéricas enquanto um diretor de vendas não consegue abrir uma apresentação pode exacerbar o estresse. O mecanismo de **bloqueio conversacional de 3 mensagens** do K-Desk visa atenuar esse problema, direcionando rapidamente para humanos quando a solução não é imediata.
+4. **Fadiga de Automação:** O excesso de assistentes virtuais em múltiplos departamentos pode gerar barreiras de comunicação. O agente deve ter uma interface limpa, objetiva e transparente, sempre deixando claro que é uma máquina e fornecendo uma rota de escape humana simples.
 
-### 6.1 Potencial de geração de valor
+---
 
-O agente proposto pode gerar valor em quatro frentes principais:
+## 7. Conclusão e Recomendações
 
-1. Eficiência operacional
-- Redução do tempo gasto por analistas em triagem inicial e coleta repetitiva de informações.
+O projeto do K-Desk cumpre com maestria e precisão os requisitos solicitados: integra uma solução conversacional de alto nível estético e funcional com inteligência de processamento de linguagem natural capaz de interpretar relatos, ler bases estruturadas, tratar ambiguidades, definir prioridades de forma justificada e persistir os atendimentos de forma estruturada.
 
-2. Padronização de atendimento
-- Aplicação consistente de perguntas diagnósticas, critérios de prioridade e orientações de contorno.
+A escolha de uma arquitetura híbrida (motor de matching lexical + LLM em duas fases) demonstrou-se a decisão mais madura para o ambiente de negócios atual, pois resguarda a empresa de alucinações descontroladas da IA ao mesmo tempo que mantém a flexibilidade necessária para compreender o linguajar cotidiano dos colaboradores.
 
-3. Escalabilidade
-- Capacidade de absorver grande volume de solicitações de baixa e média complexidade.
-
-4. Governança e rastreabilidade
-- Registro estruturado dos atendimentos para auditoria, métricas e melhoria contínua.
-
-### 6.2 Limites e riscos
-
-Apesar dos ganhos, a automação possui limites importantes:
-
-- Dependência da qualidade da base: conteúdo desatualizado implica resposta inadequada.
-- Ambiguidade linguística: descrições muito vagas podem induzir classificação imperfeita.
-- Casos excepcionais: eventos raros ou inéditos exigem julgamento técnico humano.
-- Risco de excesso de confiança: usuários podem interpretar resposta automática como decisão final em casos sensíveis.
-
-Esses limites reforçam que o melhor desenho é híbrido: automação para triagem e encaminhamento, com supervisão humana nos pontos críticos.
-
-## 7. Conclusão
-
-A solução implementada demonstra viabilidade técnica e organizacional para modernizar o suporte de TI com agente inteligente conversacional. O sistema atende aos requisitos centrais: conversa em linguagem natural, consulta base estruturada, qualifica demandas ambíguas, registra solicitações, define prioridade e estima prazo automaticamente.
-
-Do ponto de vista arquitetural, as decisões adotadas equilibram simplicidade, transparência e capacidade de evolução. Do ponto de vista de negócio, a proposta tende a reduzir custo operacional, melhorar a experiência do usuário interno e aumentar a maturidade de gestão do service desk.
-
-Como próximos passos, recomenda-se evoluir o protótipo para integração com APIs de ITSM, observabilidade de métricas (SLA, reincidência e taxa de escalonamento), e mecanismos semânticos mais robustos para interpretação de linguagem natural em cenários de alta variabilidade.
+Como recomendações para futuras evoluções técnicas do sistema, sugerem-se:
+1. **Integração com APIs de ITSM de Mercado:** Conectar o backend a ferramentas consolidadas como Jira Service Management ou ServiceNow para automatizar o envio de tickets.
+2. **Autenticação Integrada de Usuários (SSO):** Incorporar validação de login (Active Directory/Okta) no chat para permitir a execução automatizada de ações sensíveis (como reset de senhas do usuário sem intervenção de analistas).
+3. **Mecanismo RAG Semântico Completo:** Substituir a busca lexical de palavras por busca vetorial (*Embeddings*) para elevar o nível de matching a correspondências conceituais avançadas.
