@@ -1,6 +1,21 @@
 {
-  "name": "K-Desk IT Support Chatbot",
+  "name": "K-Desk IT Support Chatbot (Apenas Demonstrativo)",
   "nodes": [
+    {
+      "parameters": {
+        "content": "## ⚠️ OBSERVAÇÃO IMPORTANTE\n\nEste workflow do n8n é **apenas ilustrativo** para fins acadêmicos e para demonstração de conceito (para o avaliador ter uma noção de como seria a modelagem visual do agente).\n\nA solução real do **K-Desk** foi totalmente programada e implementada em produção via **Vercel** usando um backend **Python/Flask serverless** (`api/index.py`), banco de dados **Vercel PostgreSQL** e triagem autônoma via API direta do **Gemini 2.5/3.5**.\n\nAs ferramentas conectadas aqui (`consultar_kb` e `registrar_chamado`) apenas exemplificam como o n8n faria requisições HTTP para a API hospedada na Vercel.",
+        "height": 220,
+        "width": 640
+      },
+      "id": "sticky-note-notice-id",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        380,
+        -20
+      ]
+    },
     {
       "parameters": {
         "options": {}
