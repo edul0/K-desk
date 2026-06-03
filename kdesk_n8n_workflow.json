@@ -1,0 +1,164 @@
+{
+  "name": "K-Desk IT Support Chatbot",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "chat-trigger-id",
+      "name": "When chat message received",
+      "type": "n8n-nodes-base.chatTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        380,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.message }}",
+        "options": {
+          "systemMessage": "Você é o K-Desk, um agente autônomo de suporte de TI (Nível 1) extremamente profissional.\n\nSEU OBJETIVO PRINCIPAL:\nTentar diagnosticar e resolver o problema do usuário diretamente no chat antes de abrir qualquer chamado técnico.\n\nREGRAS DE CONVERSAÇÃO E TRIAGEM:\n1. Cumprimente o usuário e investigue o problema com empatia.\n2. Use a ferramenta 'consultar_kb' para buscar instruções de resolução específicas para o problema do usuário.\n3. Se o relato do usuário for ambíguo ou faltarem informações fundamentais (ex: qual impressora, qual sistema operacional, código de erro), faça perguntas de diagnóstico curtas uma de cada vez.\n4. Sugira uma ação prática (workaround ou resolução da base de conhecimento) e peça para o usuário testar.\n\nREGRAS DE REGISTRO DE TICKET (ABERTURA DE CHAMADO):\n- A abertura de chamados está BLOQUEADA no início da conversa. É PROIBIDO registrar chamado de imediato.\n- Você só pode chamar a ferramenta 'registrar_chamado' após pelo menos 3 mensagens do usuário e se ele concordar explicitamente em abrir o chamado após os procedimentos de teste falharem.\n- Ao registrar o chamado, você deve preencher detalhadamente o 'troubleshooting_summary' com tudo o que foi tentado e relatado no chat.\n\nSe o problema for resolvido com sucesso pelo chat, parabenize o usuário e finalize o atendimento sem registrar o chamado."
+        }
+      },
+      "id": "ai-agent-id",
+      "name": "AI Agent",
+      "type": "n8n-nodes-base.aiAgent",
+      "typeVersion": 1.6,
+      "position": [
+        600,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "gemini-2.5-flash",
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "id": "gemini-model-id",
+      "name": "Google Gemini Chat Model",
+      "type": "n8n-nodes-base.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        500,
+        380
+      ],
+      "credentials": {
+        "googleIdentifyAdminApi": {
+          "id": "gemini-cred-id",
+          "name": "Google Gemini API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "contextWindowLength": 10
+      },
+      "id": "window-memory-id",
+      "name": "Window Buffer Memory",
+      "type": "n8n-nodes-base.aiMemoryWindowBuffer",
+      "typeVersion": 1.3,
+      "position": [
+        620,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "name": "consultar_kb",
+        "description": "Consulte a base de conhecimento de TI de suporte. Use termos chaves como 'wifi', 'vpn', 'impressora' etc. Retorna artigos úteis contendo passos de resolução e perguntas diagnósticas.",
+        "source": "customCode",
+        "javascriptCode": "try {\n  // Realiza a chamada HTTP para o backend do K-Desk para buscar artigos da base filtrados.\n  // Ajuste a URL para o seu endpoint da Vercel ou ambiente de desenvolvimento local.\n  const query = args.query || '';\n  const response = await fetch('https://k-desk.vercel.app/api/chat', {\n    method: 'POST',\n    headers: { 'Content-Type': 'application/json' },\n    body: JSON.stringify({\n      description: query,\n      chat_context: []\n    })\n  });\n  const data = await response.json();\n  return JSON.stringify(data);\n} catch (error) {\n  return JSON.stringify({\n    error: 'Falha ao buscar base de conhecimento: ' + error.message\n  });\n}"
+      },
+      "id": "tool-consult-kb-id",
+      "name": "Tool: Consultar KB",
+      "type": "n8n-nodes-base.aiTool",
+      "typeVersion": 1,
+      "position": [
+        740,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "name": "registrar_chamado",
+        "description": "Registra formalmente um ticket de suporte de TI no banco de dados. Deve ser chamado apenas como último recurso, com o consentimento do usuário e após 3+ interações. Requer os parâmetros: requester_name, requester_email, description, kb_article_id, service, category, priority, estimated_resolution_time, escalation_required e troubleshooting_summary.",
+        "source": "customCode",
+        "javascriptCode": "try {\n  // Registra o ticket de suporte diretamente na API do K-Desk.\n  // Ajuste a URL para o endereço real de sua hospedagem ou localhost.\n  const response = await fetch('https://k-desk.vercel.app/api/triage', {\n    method: 'POST',\n    headers: { 'Content-Type': 'application/json' },\n    body: JSON.stringify({\n      requester_name: args.requester_name || 'Usuário via n8n',\n      requester_email: args.requester_email || 'n8n@kdesk.corp',\n      description: args.description || '',\n      answers: {\n        troubleshooting_summary: args.troubleshooting_summary || '',\n        kb_article_id: args.kb_article_id || ''\n      }\n    })\n  });\n  const data = await response.json();\n  return JSON.stringify(data);\n} catch (error) {\n  return JSON.stringify({\n    error: 'Erro de conexao ao salvar o ticket: ' + error.message\n  });\n}"
+      },
+      "id": "tool-register-ticket-id",
+      "name": "Tool: Registrar Chamado",
+      "type": "n8n-nodes-base.aiTool",
+      "typeVersion": 1,
+      "position": [
+        860,
+        340
+      ]
+    }
+  ],
+  "connections": {
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Window Buffer Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: Consultar KB": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: Registrar Chamado": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "id": "kdesk-workflow-n8n"
+}
