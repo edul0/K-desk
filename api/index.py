@@ -877,6 +877,7 @@ thead th {
 tbody tr {
   border-bottom: 1px solid var(--border);
   transition: background 0.15s;
+  cursor: pointer;
 }
 tbody tr:last-child { border-bottom: none; }
 tbody tr:hover { background: var(--surface2); }
@@ -914,6 +915,38 @@ tbody td {
 .badge-aberto      { background: rgba(245,158,11,0.10); color: #fbbf24; border: 1px solid rgba(245,158,11,0.2); }
 .badge-andamento   { background: rgba(59,130,246,0.10); color: #60a5fa; border: 1px solid rgba(59,130,246,0.2); }
 .badge-finalizado  { background: rgba(16,185,129,0.10); color: #34d399; border: 1px solid rgba(16,185,129,0.2); }
+
+/* ── MODAL E SCROLL TABELA ── */
+.modal-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000; opacity: 0; pointer-events: none; transition: opacity 0.2s;
+}
+.modal-overlay.active { opacity: 1; pointer-events: auto; }
+.modal-content {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  width: 90%; max-width: 700px; max-height: 85vh; display: flex; flex-direction: column;
+  box-shadow: var(--shadow-lg); transform: translateY(20px); transition: transform 0.2s;
+}
+.modal-overlay.active .modal-content { transform: translateY(0); }
+.modal-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.modal-header h2 { font-size: 16px; font-weight: 600; color: var(--text); }
+.modal-close { background: none; border: none; color: var(--text-muted); font-size: 24px; cursor: pointer; transition: color 0.2s; }
+.modal-close:hover { color: var(--text); }
+.modal-body { padding: 20px; overflow-y: auto; font-size: 13.5px; color: var(--text-dim); line-height: 1.6; }
+.modal-body pre { white-space: pre-wrap; background: var(--surface2); padding: 12px; border-radius: 8px; border: 1px solid var(--border); font-family: var(--sans); color: var(--text); margin-top: 12px; font-size: 12.5px; }
+.modal-body h3 { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+
+#table-wrap {
+  max-height: 400px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.2) transparent;
+}
+#table-wrap::-webkit-scrollbar { width: 6px; }
+#table-wrap::-webkit-scrollbar-track { background: transparent; }
+#table-wrap::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
 
 /* ── LOADING / EMPTY ── */
 .state-loading, .state-empty {
@@ -1050,6 +1083,17 @@ tbody td {
 
 </div>
 
+<!-- Modal -->
+<div id="ticket-modal" class="modal-overlay" onclick="if(event.target===this) closeModal()">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2 id="modal-title">Detalhes do Chamado</h2>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
 <script>
 const COLORS_PRI = {
   'Crítica': '#ef4444', 'Alta': '#f59e0b', 'Média': '#3b82f6', 'Baixa': '#10b981'
@@ -1060,6 +1104,27 @@ const BADGE_PRI = {
 const BADGE_STATUS = {
   'Aberto':'badge-aberto','Em andamento':'badge-andamento','Finalizado':'badge-finalizado'
 };
+
+function openModal(index) {
+  const t = window.allTickets[index];
+  if (!t) return;
+  document.getElementById('modal-title').textContent = 'Chamado ' + (t.ticket_id || '');
+  
+  let html = `<p><strong>Usuário:</strong> ${t.requester_name || '-'} (${t.requester_email || '-'})</p>
+  <p><strong>Serviço:</strong> ${t.service || '-'} / ${t.category || '-'}</p>
+  <p><strong>Status:</strong> <span class="badge ${BADGE_STATUS[t.status||'Aberto']}">${t.status || 'Aberto'}</span> | <strong>Prioridade:</strong> <span class="badge ${BADGE_PRI[t.priority||'Média']}">${t.priority || '-'}</span></p>
+  <p><strong>Data de Abertura:</strong> ${(t.created_at || '').replace('T', ' ').slice(0, 16)}</p>
+  <hr style="border:0; border-top:1px solid var(--border); margin:16px 0;">
+  <h3>Histórico e Conversa</h3>
+  <pre>${(t.description || 'Nenhuma conversa registrada.')}</pre>`;
+  
+  document.getElementById('modal-body').innerHTML = html;
+  document.getElementById('ticket-modal').classList.add('active');
+}
+
+function closeModal() {
+  document.getElementById('ticket-modal').classList.remove('active');
+}
 
 function norm(s){ return (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(); }
 
@@ -1153,14 +1218,15 @@ function renderTable(tickets) {
     return;
   }
   count.textContent = tickets.length + ' chamado' + (tickets.length!==1?'s':'');
-  const rows = tickets.slice(0, 50).map(t => {
+  window.allTickets = tickets.slice(0, 50);
+  const rows = window.allTickets.map((t, index) => {
     const pri = t.priority || 'Média';
     const bPri = BADGE_PRI[pri] || 'badge-media';
     const st = t.status || 'Aberto';
     const bSt = BADGE_STATUS[st] || 'badge-aberto';
     const dt = (t.created_at||'').replace('T',' ').slice(0,16);
     const desc = (t.description||'').slice(0,80) + ((t.description||'').length>80?'…':'');
-    return `<tr>
+    return `<tr onclick="openModal(${index})">
       <td class="td-id">${t.ticket_id||'—'}</td>
       <td><span class="td-desc" title="${(t.description||'').replace(/"/g,'')}">${desc}</span></td>
       <td>${t.service||'—'}</td>
