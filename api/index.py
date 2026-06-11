@@ -408,6 +408,18 @@ Você DEVE SEMPRE responder EXATAMENTE E APENAS com um bloco JSON. Não escreva 
     eta = payload.get("eta", "N/A")
     escalation = payload.get("escalation", False)
 
+    # Garante que o fallback local também dê a DICA DE CONTORNO antes de abrir chamado direto
+    agent_msgs = [msg for msg in chat_context if "Agente:" in str(msg)]
+    already_gave_tip = any("Encontrei uma possível solução" in str(msg) for msg in agent_msgs)
+    
+    if not already_gave_tip and article.workaround:
+        msg = f"Encontrei uma possível solução na base de conhecimento: {article.workaround}\n\nPor favor, tente realizar esse procedimento e me diga se resolveu o problema. Se não resolver, eu abrirei o chamado para a equipe técnica."
+        return jsonify({
+            "status": "need_more_info",
+            "ai_message": msg,
+            "is_greeting": True
+        }), 200
+
     try:
         ticket_id = append_ticket(
             requester_name=requester_name,
