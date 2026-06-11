@@ -28,32 +28,42 @@ def gemini_autonomous_agent(prompt: str, system_instruction: str = "") -> str | 
     api_key = os.environ.get("GEMINI_API_KEY", "").strip()
     if not api_key:
         return None
-    try:
-        model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+        
+    models_to_try = [
+        os.environ.get("GEMINI_MODEL", "gemini-2.5-flash"),
+        "gemini-2.0-flash",
+        "gemini-1.5-flash"
+    ]
+    
+    # Remove duplicatas mantendo a ordem
+    models_to_try = list(dict.fromkeys(models_to_try))
+
+    payload = {
+        "contents": [
+            {
+                "role": "user",
+                "parts": [{"text": prompt}],
+            }
+        ]
+    }
+    if system_instruction:
+        payload["systemInstruction"] = {
+            "parts": [{"text": system_instruction}]
+        }
+    
+    payload["generationConfig"] = {
+        "responseMimeType": "application/json"
+    }
+
+    req_data = json.dumps(payload).encode("utf-8")
+    
+    for model in models_to_try:
         endpoint = (
             f"https://generativelanguage.googleapis.com/v1beta/models/"
             f"{model}:generateContent?key={urllib.parse.quote(api_key)}"
         )
-        payload = {
-            "contents": [
-                {
-                    "role": "user",
-                    "parts": [{"text": prompt}],
-                }
-            ]
-        }
-        if system_instruction:
-            payload["systemInstruction"] = {
-                "parts": [{"text": system_instruction}]
-            }
         
-        payload["generationConfig"] = {
-            "responseMimeType": "application/json"
-        }
-
-        req_data = json.dumps(payload).encode("utf-8")
-        
-        max_retries = 3
+        max_retries = 2
         for attempt in range(max_retries):
             try:
                 req = urllib.request.Request(
@@ -71,15 +81,20 @@ def gemini_autonomous_agent(prompt: str, system_instruction: str = "") -> str | 
                 text = "".join((p.get("text") or "") for p in parts).strip()
                 return text or None
             except urllib.error.HTTPError as e:
+                # Se for erro de quota (429) ou indisponibilidade (503), tenta de novo no mesmo modelo
                 if e.code in (429, 503) and attempt < max_retries - 1:
                     time.sleep(2 ** attempt)
                     continue
-                else:
-                    raise e
-    except Exception as e:
-        app.logger.error(f"Erro no Gemini: {e}")
-        # Retorna None em caso de erro para ativar o fallback local silencioso
-        return None
+                # Se for 404 (modelo não existe) ou já esgotou as tentativas 429/503, quebra o loop interno e tenta o PRÓXIMO modelo
+                app.logger.warning(f"Falha no modelo {model}: HTTP {e.code}. Tentando próximo modelo se houver.")
+                break
+            except Exception as e:
+                app.logger.error(f"Erro inesperado no modelo {model}: {e}")
+                break
+
+    # Se tentou todos os modelos e nenhum funcionou, ativa o fallback local silencioso
+    app.logger.error("Todos os modelos Gemini falharam. Ativando fallback local.")
+    return None
 
 
 @app.route("/", methods=["GET"])
