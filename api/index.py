@@ -24,6 +24,7 @@ def gemini_assist(prompt: str) -> str | None:
 
 
 def gemini_autonomous_agent(prompt: str, system_instruction: str = "") -> str | None:
+    import time
     api_key = os.environ.get("GEMINI_API_KEY", "").strip()
     if not api_key:
         return None
@@ -50,30 +51,35 @@ def gemini_autonomous_agent(prompt: str, system_instruction: str = "") -> str | 
             "responseMimeType": "application/json"
         }
 
-        req = urllib.request.Request(
-            endpoint,
-            data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=20) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-        candidates = data.get("candidates") or []
-        if not candidates:
-            return None
-        parts = (candidates[0].get("content") or {}).get("parts") or []
-        text = "".join((p.get("text") or "") for p in parts).strip()
-        return text or None
+        req_data = json.dumps(payload).encode("utf-8")
+        
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                req = urllib.request.Request(
+                    endpoint,
+                    data=req_data,
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                with urllib.request.urlopen(req, timeout=20) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                candidates = data.get("candidates") or []
+                if not candidates:
+                    return None
+                parts = (candidates[0].get("content") or {}).get("parts") or []
+                text = "".join((p.get("text") or "") for p in parts).strip()
+                return text or None
+            except urllib.error.HTTPError as e:
+                if e.code in (429, 503) and attempt < max_retries - 1:
+                    time.sleep(2 ** attempt)
+                    continue
+                else:
+                    raise e
     except Exception as e:
         app.logger.error(f"Erro no Gemini: {e}")
-        # Retorna o erro como JSON para forçar a exibição na tela e evitar o fallback silencioso
-        err_msg = str(e)
-        if hasattr(e, 'read'):
-            err_msg += " " + e.read().decode('utf-8')
-        return json.dumps({
-            "action": "reply",
-            "message": f"ERRO DA API DO GOOGLE: {err_msg}"
-        })
+        # Retorna None em caso de erro para ativar o fallback local silencioso
+        return None
 
 
 @app.route("/", methods=["GET"])
